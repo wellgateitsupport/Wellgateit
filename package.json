@@ -12,7 +12,7 @@
     "extract": "node scripts/extract.mjs",
     "gen:imports": "node scripts/gen-imports.mjs",
     "icons": "node scripts/generate-icons.mjs",
-    "test:unit": "node --test tests/unit",
+    "test:unit": "node scripts/bundle-for-tests.mjs && node --test tests/unit/*.test.mjs",
     "test": "playwright test"
   },
   "dependencies": {

@@ -41,9 +41,56 @@ export const MANIFEST = [
 ];
 // บรรทัด 13468 (ReactDOM.createRoot(...).render(<App />)) ถูกแทนด้วย src/main.jsx
 
-// transform เดียวของทั้งระบบ: หัว IIFE ของ mock (window.MOCK → const MOCK + export)
-const MOCK_ORIG_FIRST = 'window.MOCK = (() => {';
-const MOCK_NEW_FIRST = 'const MOCK = (() => {';
+// ============================================================
+// PATCHES — จุดแก้ไขเนื้อ body ทั้งหมดของระบบ ประกาศเป็นข้อมูลตรงนี้ที่เดียว
+// กติกา: find ต้องพบใน body ตรงเป๊ะ "ครั้งเดียว" ไม่งั้น error ทันที
+// --verify ตรวจว่า body ในไฟล์ == patch(เนื้อจากต้นฉบับ) → ทุกอย่างนอกเหนือ
+// patch เหล่านี้การันตี byte-identical กับ original/index.html
+// ============================================================
+export const PATCHES = [
+  {
+    file: 'src/data/mock.js',
+    why: 'แปลง window.MOCK IIFE เป็น const MOCK เพื่อ export (window.MOCK ถูก assign กลับใน exports region)',
+    find: 'window.MOCK = (() => {',
+    replace: 'const MOCK = (() => {',
+  },
+  {
+    file: 'src/shell/app.jsx',
+    why: 'ประกาศ FB_MODE (ค่าคงที่จาก env ตลอดอายุ build) ใช้ปิด legacy bin-sync loops ในโหมด Firebase',
+    find: '// ===== Login Screen — แสดงเมื่อมี user ใดๆในระบบที่ตั้ง password =====',
+    replace: '// Firebase mode — ค่าคงที่จาก build env; เมื่อเปิด จะปิด legacy bin-sync/invite (ดู useFirebaseSync)\nconst FB_MODE = isFirebaseMode();\n\n// ===== Login Screen — แสดงเมื่อมี user ใดๆในระบบที่ตั้ง password =====',
+  },
+  {
+    file: 'src/shell/app.jsx',
+    why: 'โหมด Firebase ไม่ใช้ invite link แบบเก่า (#join=)',
+    find: 'const inviteApplied = React.useMemo(() => consumeInvite(), []);',
+    replace: 'const inviteApplied = React.useMemo(() => (FB_MODE ? false : consumeInvite()), []);',
+  },
+  {
+    file: 'src/shell/app.jsx',
+    why: 'เรียก useFirebaseSync hook (no-op เมื่อไม่ได้ตั้งค่า Firebase env)',
+    find: '  const setState = (patch) => _setState(s => {',
+    replace: '  // Firebase realtime sync — subscribe/push อยู่ใน hook ทั้งหมด, no-op เมื่อ FB_MODE=false\n  useFirebaseSync(state, _setState);\n\n  const setState = (patch) => _setState(s => {',
+  },
+  {
+    file: 'src/shell/app.jsx',
+    why: 'โหมด Firebase ปิดการ push ขึ้น bin (localStorage autosave ยังทำงานเหมือนเดิมทุกโหมด)',
+    find: '      if (cfg.enabled && cfg.bucketUrl && initialPullDone.current) {',
+    replace: '      if (!FB_MODE && cfg.enabled && cfg.bucketUrl && initialPullDone.current) {',
+  },
+  {
+    file: 'src/shell/app.jsx',
+    why: 'โหมด Firebase ปิด auto-pull 10 วิของ bin sync (ปลดล็อค initialPullDone เพื่อ parity)',
+    find: '    const tick = async (isInitial) => {\n      if (cancelled) return;',
+    replace: '    const tick = async (isInitial) => {\n      if (cancelled) return;\n      if (FB_MODE) { initialPullDone.current = true; return; }',
+  },
+  {
+    file: 'src/pages/adminSettings.jsx',
+    why: 'โหมด Firebase แสดงสถานะ Firebase แทน UI ตั้งค่า bin sync (กัน double-sync)',
+    find: 'const CloudSyncSettings = () => {',
+    replace: 'const CloudSyncSettings = () => {\n  if (isFirebaseMode()) return <FirebaseSyncStatus />;',
+  },
+];
 
 // จับ top-level declaration ที่ column 0 เท่านั้น (เนื้อ block อยู่ column 0 ทั้งหมด)
 const DECL_RE = /^(?:async\s+)?(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/;
@@ -56,16 +103,22 @@ const readSourceLines = () => {
 
 const sliceBody = (lines, entry) => lines.slice(entry.start - 1, entry.end).join('\n');
 
-const transformBody = (entry, body) => {
-  if (entry.kind !== 'mock') return body;
-  if (!body.startsWith(MOCK_ORIG_FIRST)) throw new Error(`mock.js: expected first line "${MOCK_ORIG_FIRST}"`);
-  return MOCK_NEW_FIRST + body.slice(MOCK_ORIG_FIRST.length);
+// นับจำนวนครั้งที่ substring ปรากฏ (ต้อง === 1 ทุก patch)
+const countOccurrences = (haystack, needle) => {
+  let count = 0, i = 0;
+  while ((i = haystack.indexOf(needle, i)) !== -1) { count++; i += needle.length; }
+  return count;
 };
 
-const untransformBody = (entry, body) => {
-  if (entry.kind !== 'mock') return body;
-  if (!body.startsWith(MOCK_NEW_FIRST)) throw new Error(`mock.js: expected transformed first line "${MOCK_NEW_FIRST}"`);
-  return MOCK_ORIG_FIRST + body.slice(MOCK_NEW_FIRST.length);
+const applyPatches = (entry, body) => {
+  for (const patch of PATCHES.filter(p => p.file === entry.file)) {
+    const n = countOccurrences(body, patch.find);
+    if (n !== 1) {
+      throw new Error(`${entry.file}: patch "${patch.why}" — find string matched ${n} times (ต้อง 1 ครั้งเป๊ะ)\n  find: ${JSON.stringify(patch.find.slice(0, 100))}`);
+    }
+    body = body.replace(patch.find, patch.replace);
+  }
+  return body;
 };
 
 const scanSymbols = (body) => {
@@ -122,7 +175,7 @@ const run = () => {
   for (const entry of MANIFEST) {
     const target = path.join(ROOT, entry.file);
     fs.mkdirSync(path.dirname(target), { recursive: true });
-    const body = transformBody(entry, sliceBody(lines, entry));
+    const body = applyPatches(entry, sliceBody(lines, entry));
     if (entry.kind === 'css') {
       fs.writeFileSync(target, body + '\n');
     } else {
@@ -139,20 +192,22 @@ const verify = () => {
   let failed = 0;
   for (const entry of MANIFEST) {
     const target = path.join(ROOT, entry.file);
-    const expected = sliceBody(lines, entry);
+    const expected = applyPatches(entry, sliceBody(lines, entry));
+    const nPatches = PATCHES.filter(p => p.file === entry.file).length;
     let actual;
     try {
       const content = fs.readFileSync(target, 'utf8');
       actual = entry.kind === 'css'
         ? content.replace(/\n$/, '')
-        : untransformBody(entry, extractBodyFromModule(content, entry.file));
+        : extractBodyFromModule(content, entry.file);
     } catch (e) {
       console.error(`✗ ${entry.file}: ${e.message}`);
       failed++;
       continue;
     }
     if (actual === expected) {
-      console.log(`✓ ${entry.file}: byte-identical (${expected.length.toLocaleString()} bytes)`);
+      const label = nPatches ? `byte-identical modulo ${nPatches} registered patch(es)` : 'byte-identical';
+      console.log(`✓ ${entry.file}: ${label} (${expected.length.toLocaleString()} bytes)`);
     } else {
       failed++;
       const a = actual.split('\n'), b = expected.split('\n');
@@ -167,7 +222,7 @@ const verify = () => {
     console.error(`\n${failed} module(s) FAILED verification.`);
     process.exit(1);
   }
-  console.log('\nAll modules byte-identical to source. ✔');
+  console.log(`\nAll modules verified: byte-identical to source modulo ${PATCHES.length} registered patches. ✔`);
 };
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);

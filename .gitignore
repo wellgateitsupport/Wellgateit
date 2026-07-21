@@ -4,6 +4,7 @@ dist/
 .env.local
 test-results/
 playwright-report/
+tests/unit/.build/
 dev.log
 *.log
 .DS_Store
