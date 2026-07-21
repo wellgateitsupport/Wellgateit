@@ -1,0 +1,41 @@
+# CI — รันทุก push/PR: พิสูจน์ extraction fidelity, lint, build, unit + smoke tests
+# ไม่ใช้ secrets เลย → ทดสอบโหมด localStorage (พฤติกรรมเดิมของไฟล์ต้นฉบับ)
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify extraction fidelity (byte-diff vs original)
+        run: node scripts/extract.mjs --verify
+
+      - name: Lint (no-undef harness)
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests (diff + merge semantics)
+        run: npm run test:unit
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Smoke tests (production build)
+        run: npm test
