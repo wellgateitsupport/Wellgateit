@@ -1,4 +1,12 @@
-# spline-demo — Interactive 3D (Spline + Spotlight)
+# spline-demo — shadcn UI playground (FlowDesk Dashboard + Interactive 3D)
+
+โปรเจกต์นี้มี 2 demo:
+1. **FlowDesk Dashboard** (หน้าหลักปัจจุบัน) — dashboard สไตล์ shadcn ธีม FlowDesk: app shell (sidebar + topbar), การ์ดสถิติ, กราฟ recharts, ตารางคำขอล่าสุด — ดูรายละเอียดท้ายไฟล์
+2. **Interactive 3D (Spline + Spotlight)** — demo ก่อนหน้า อยู่ที่ `src/components/ui/demo.tsx` (สลับได้ใน `src/App.tsx`)
+
+---
+
+# Demo 1 เดิม — Interactive 3D (Spline + Spotlight)
 
 โปรเจกต์สาธิตแยกต่างหากจากแอพหลัก FlowDesk — ตั้งค่าเป็น **Vite + React + TypeScript + Tailwind CSS + shadcn** ให้ถูกต้องตามที่คอมโพเนนต์ 3D Spline ต้องการ โดย**ไม่แตะโค้ด FlowDesk เดิม** (ที่เป็น JavaScript + CSS ธรรมดา)
 
@@ -51,3 +59,21 @@ shadcn กำหนดให้ primitive UI ทุกตัวอยู่ใ�
 
 `@splinetool/react-spline`, `@splinetool/runtime`, `framer-motion` (คอมโพเนนต์),
 `clsx`, `tailwind-merge`, `class-variance-authority`, `tailwindcss-animate`, `lucide-react` (มาตรฐาน shadcn)
+
+---
+
+# Demo 2 — FlowDesk Dashboard (shadcn style)
+
+Dashboard ธีม FlowDesk (ข้อมูลจำลองภาษาไทย) ตามโครงสร้าง component ที่โจทย์กำหนด:
+
+```
+src/components/ui/efferd-dashboard-2.tsx   wrapper: <AppShell><Dashboard/></AppShell> (ตามโค้ดที่ integrate)
+src/components/app-shell.tsx               sidebar (nav ไทย + Collapsible "รายงาน" + user menu) + topbar (search, bell, avatar dropdown)
+src/components/dashboard.tsx               การ์ดสถิติ 4 ใบ · AreaChart แนวโน้ม 6 เดือน · BarChart ตามประเภท · ตารางคำขอล่าสุด
+src/components/ui/                         primitives เพิ่ม: button, badge, avatar, separator, collapsible, dropdown-menu, table, input
+```
+
+- สี primary ทั้งระบบ = ส้มแบรนด์ FlowDesk `#E08A3F` (ตั้งใน `src/index.css` ทั้ง light/dark)
+- deps เพิ่ม: `recharts`, `@radix-ui/react-avatar`, `@radix-ui/react-separator`, `@radix-ui/react-collapsible`, `@radix-ui/react-dropdown-menu`
+- หมายเหตุ: โค้ด `AppShell`/`Dashboard` ไม่ได้แนบมากับโจทย์ integration — สองไฟล์นี้ถูกเขียนขึ้นใหม่ตามสไตล์ shadcn dashboard block โดยใช้เนื้อหา/ข้อมูลจำลองของ FlowDesk
+- `demo.tsx` ตามโจทย์ (ที่ render `<EfferdDashboard2/>`) ไม่ได้สร้าง เพราะชื่อชนกับ `ui/demo.tsx` ของ Spline demo เดิม — `src/App.tsx` render `EfferdDashboard2` ตรงๆ แทน

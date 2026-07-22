@@ -1,14 +1,9 @@
-import { SplineSceneBasic } from '@/components/ui/demo'
+import EfferdDashboard2 from '@/components/ui/efferd-dashboard-2'
 
-// หน้า showcase — วางคอมโพเนนต์ 3D hero ไว้กลางจอบนพื้นหลังเข้ม
+// หน้าหลักของ demo — FlowDesk-themed dashboard (shadcn style)
+// หมายเหตุ: demo ก่อนหน้า (Spline 3D) ยังอยู่ที่ @/components/ui/demo — สลับกลับได้
 function App() {
-  return (
-    <main className="min-h-screen w-full bg-neutral-950 flex items-center justify-center p-4 md:p-8">
-      <div className="w-full max-w-4xl">
-        <SplineSceneBasic />
-      </div>
-    </main>
-  )
+  return <EfferdDashboard2 />
 }
 
 export default App

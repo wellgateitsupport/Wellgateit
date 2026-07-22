@@ -9,6 +9,10 @@
     "preview": "vite preview --port 4174 --strictPort"
   },
   "dependencies": {
+    "@radix-ui/react-avatar": "^1.2.3",
+    "@radix-ui/react-collapsible": "^1.1.17",
+    "@radix-ui/react-dropdown-menu": "^2.1.21",
+    "@radix-ui/react-separator": "^1.1.12",
     "@splinetool/react-spline": "^4.1.0",
     "@splinetool/runtime": "^1.12.98",
     "class-variance-authority": "^0.7.1",
@@ -17,6 +21,7 @@
     "lucide-react": "^1.25.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "recharts": "^3.10.0",
     "tailwind-merge": "^3.6.0",
     "tailwindcss-animate": "^1.0.7"
   },
