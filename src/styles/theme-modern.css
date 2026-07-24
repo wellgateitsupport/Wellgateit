@@ -1,0 +1,127 @@
+/* ============================================
+   FlowDesk — Modern theme (shadcn-style)
+   โหลด "หลัง" global.css เพื่อ override design tokens + ปรับ component
+   ทั้งระบบโดยไม่แตะโค้ดที่สกัดจากต้นฉบับเลย
+   ถอดธีมนี้ออก = ลบ import บรรทัดเดียวใน src/main.jsx
+   ============================================ */
+
+/* ── Light: โทน zinc เย็นสะอาดแบบ shadcn + ส้มแบรนด์คงเดิม ── */
+:root {
+  --brand: oklch(70% 0.145 58);            /* ≈ #E08A3F */
+  --brand-hover: oklch(64% 0.15 55);
+  --brand-soft: oklch(96.5% 0.03 70);
+  --brand-soft-2: oklch(92.5% 0.055 65);
+  --brand-ink: oklch(45% 0.12 50);
+
+  --bg: oklch(98.4% 0.001 286);            /* zinc-50 */
+  --surface: oklch(100% 0 0);
+  --surface-2: oklch(96.8% 0.001 286);     /* zinc-100 */
+  --surface-3: oklch(93% 0.002 286);       /* zinc-200~ */
+  --border: oklch(92.5% 0.002 286);
+  --border-strong: oklch(85% 0.003 286);
+  --ink: oklch(18% 0.004 285);             /* zinc-950~ */
+  --ink-2: oklch(38% 0.005 285);
+  --ink-3: oklch(55% 0.005 285);
+  --ink-4: oklch(70% 0.004 286);
+
+  --green: oklch(69% 0.15 162);            /* emerald */
+  --green-soft: oklch(96% 0.045 162);
+  --green-ink: oklch(45% 0.12 162);
+  --amber: oklch(78% 0.15 75);
+  --amber-soft: oklch(96.5% 0.055 90);
+  --amber-ink: oklch(50% 0.13 60);
+  --red: oklch(60% 0.21 27);
+  --red-soft: oklch(95.5% 0.025 25);
+  --red-ink: oklch(46% 0.18 27);
+  --blue: oklch(60% 0.17 255);
+  --blue-soft: oklch(95.5% 0.022 250);
+  --blue-ink: oklch(45% 0.15 258);
+  --violet: oklch(58% 0.19 288);
+  --violet-soft: oklch(95.5% 0.025 290);
+  --violet-ink: oklch(44% 0.17 290);
+
+  --r-lg: 12px;
+  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.05);
+  --shadow: 0 1px 3px oklch(0% 0 0 / 0.07), 0 1px 2px oklch(0% 0 0 / 0.05);
+  --shadow-lg: 0 20px 40px oklch(0% 0 0 / 0.12), 0 4px 12px oklch(0% 0 0 / 0.06);
+}
+
+/* ── Dark: zinc เข้มแบบ shadcn (แทนโทนอุ่นเดิม) ── */
+[data-theme="dark"] {
+  --brand: oklch(74% 0.15 60);
+  --brand-hover: oklch(79% 0.145 62);
+  --brand-soft: oklch(30% 0.06 55);
+  --brand-soft-2: oklch(38% 0.08 55);
+  --brand-ink: oklch(88% 0.11 65);
+
+  --bg: oklch(14.5% 0.004 285);            /* zinc-950 */
+  --surface: oklch(19% 0.005 285);         /* zinc-900~ */
+  --surface-2: oklch(24% 0.005 285);
+  --surface-3: oklch(30% 0.006 285);
+  --border: oklch(30% 0.006 285);          /* เส้นนุ่มลงจากเดิม (52%) ให้โทนโมเดิร์น */
+  --border-strong: oklch(42% 0.007 285);
+  --ink: oklch(97% 0.002 286);
+  --ink-2: oklch(87% 0.003 286);
+  --ink-3: oklch(72% 0.004 286);
+  --ink-4: oklch(58% 0.005 285);
+
+  --green: oklch(76% 0.15 162);
+  --green-soft: oklch(30% 0.06 165);
+  --green-ink: oklch(88% 0.12 162);
+  --amber: oklch(82% 0.15 80);
+  --amber-soft: oklch(32% 0.07 70);
+  --amber-ink: oklch(90% 0.13 85);
+  --red: oklch(72% 0.19 25);
+  --red-soft: oklch(30% 0.09 25);
+  --red-ink: oklch(90% 0.11 25);
+  --blue: oklch(72% 0.14 250);
+  --blue-soft: oklch(30% 0.07 250);
+  --blue-ink: oklch(88% 0.1 250);
+  --violet: oklch(72% 0.15 290);
+  --violet-soft: oklch(31% 0.08 290);
+  --violet-ink: oklch(90% 0.1 290);
+
+  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.5);
+  --shadow: 0 2px 8px oklch(0% 0 0 / 0.5);
+  --shadow-lg: 0 20px 44px oklch(0% 0 0 / 0.65), 0 4px 12px oklch(0% 0 0 / 0.5);
+}
+
+/* ── Component polish (เล็ก แต่เปลี่ยนคาแรกเตอร์ให้ตรง demo) ── */
+
+/* โลโก้ FD เป็นส้มแบรนด์ (เดิมดำ) */
+.sidebar-logo-mark { background: var(--brand); color: white; border-radius: 8px; }
+
+/* เมนู active สไตล์ shadcn: พื้นเทากลาง + ตัวหนังสือเข้ม (เดิมพื้นส้มอ่อน)
+   badge ตัวเลขบน active คงส้มแบรนด์ */
+.nav-item { border-radius: 8px; padding: 8px 12px; }
+.nav-item.active { background: var(--surface-3); color: var(--ink); }
+.nav-item.active .nav-badge { background: var(--brand); }
+
+/* หัวตาราง: ยกเลิก uppercase + พื้นเทา — ให้โปร่งแบบ demo */
+.table th {
+  background: transparent;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+/* ปุ่ม primary ส้ม ตัวหนังสือขาวทั้งสองธีม (เดิม dark ใช้ตัวดำหนา) */
+.btn { border-radius: 8px; }
+.btn-primary, [data-theme="dark"] .btn-primary { background: var(--brand); border-color: var(--brand); color: white; font-weight: 500; }
+.btn-primary:hover, [data-theme="dark"] .btn-primary:hover { background: var(--brand-hover); border-color: var(--brand-hover); }
+
+/* input/select focus ring ส้มนุ่มแบบ shadcn */
+.search input, .input, .select, .textarea { border-radius: 8px; }
+.search input:focus, .input:focus, .select:focus, .textarea:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--brand) 22%, transparent);
+}
+
+/* การ์ด: เงาบางเฉียบ + ขอบชัดเบาๆ */
+.card { box-shadow: var(--shadow-sm); }
+
+/* dark: คืนความนุ่มให้เส้นขอบ component ที่ global.css เร่ง contrast ไว้ */
+[data-theme="dark"] .btn { border-color: var(--border); }
+[data-theme="dark"] .btn-outline { background: transparent; border-color: var(--border-strong); }
+[data-theme="dark"] body { background: var(--bg); }

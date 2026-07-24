@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './styles/global.css';
+import './styles/theme-modern.css'; // ธีมโมเดิร์น (shadcn-style) — ลบบรรทัดนี้ = กลับหน้าตาเดิม
 import { ErrorBoundary } from './shell/ErrorBoundary.jsx';
 import { App } from './shell/app.jsx';
 
