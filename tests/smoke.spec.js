@@ -118,3 +118,38 @@ test('Test B: สร้างคำขอ → เปิด detail → สลั�
     `pageerror ระหว่าง Test B:\n${errors.map((e) => e.stack || String(e)).join('\n---\n')}`
   ).toHaveLength(0);
 });
+
+test('Test C: ผู้ช่วย AI (โหมดฟรี) — ถามแล้วได้คำตอบ + ผลลัพธ์คลิกเปิดคำขอได้', async ({ page }) => {
+  const errors = collectPageErrors(page);
+  const TITLE = 'ทดสอบผู้ช่วย AI E2E';
+
+  // สร้างคำขอ 1 รายการก่อน เพื่อให้ผู้ช่วยมีข้อมูลตอบ
+  await login(page, 'MKT-002');
+  await page.getByRole('button', { name: 'สร้างคำขอ', exact: true }).click();
+  await page.getByRole('button', { name: /อนุมัติทั่วไป/ }).click();
+  await page.getByPlaceholder('ระบุหัวข้อคำขอ').fill(TITLE);
+  await page.getByPlaceholder('อธิบายเหตุผลและความจำเป็น...').fill('ทดสอบผู้ช่วยตอบคำถามจากข้อมูลในระบบ');
+  await page.getByRole('button', { name: 'ดำเนินการต่อ' }).click();
+  await page.getByRole('button', { name: 'ส่งคำขอ' }).click();
+  await page.waitForTimeout(500);
+
+  // เปิดผู้ช่วย → ถาม "คำขอของฉันถึงไหนแล้ว"
+  await page.getByRole('button', { name: 'เปิดผู้ช่วย FlowDesk' }).click();
+  await expect(page.locator('.ai-panel')).toBeVisible();
+  await page.locator('.ai-inputbar input').fill('คำขอของฉันถึงไหนแล้ว');
+  await page.getByRole('button', { name: 'ส่งคำถาม' }).click();
+
+  // ต้องได้คำตอบที่มีรายการคำขอ และคลิกเปิด detail ได้
+  const botMsg = page.locator('.ai-msg-bot').last();
+  await expect(botMsg).toContainText('รายการ');
+  const itemBtn = page.locator('.ai-item').first();
+  await expect(itemBtn).toContainText(TITLE);
+  await itemBtn.click();
+  await expect(page.locator('.ai-panel')).toBeHidden(); // ปิดแชทแล้วพาไปหน้ารายละเอียด
+  await expect(page.getByText(TITLE).first()).toBeVisible();
+
+  expect(
+    errors,
+    `pageerror ระหว่าง Test C:\n${errors.map((e) => e.stack || String(e)).join('\n---\n')}`
+  ).toHaveLength(0);
+});

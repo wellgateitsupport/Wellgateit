@@ -90,6 +90,12 @@ export const PATCHES = [
     find: 'const CloudSyncSettings = () => {',
     replace: 'const CloudSyncSettings = () => {\n  if (isFirebaseMode()) return <FirebaseSyncStatus />;',
   },
+  {
+    file: 'src/shell/app.jsx',
+    why: 'mount ผู้ช่วย AI (ปุ่มลอย + แชทถามข้อมูลในระบบ) — ใช้ ctx เดียวกับ pages',
+    find: '      <OnboardingTour ctx={ctx} />',
+    replace: '      <OnboardingTour ctx={ctx} />\n      <AssistantPanel ctx={ctx} />',
+  },
 ];
 
 // จับ top-level declaration ที่ column 0 เท่านั้น (เนื้อ block อยู่ column 0 ทั้งหมด)
