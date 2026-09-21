@@ -1,0 +1,22 @@
+# ============================================================================
+# Netlify — deploy เฉพาะ "แอพทำข้อสอบการขาย" ที่ public/exam/ เป็นเว็บของตัวเอง
+# ไม่มีขั้นตอน build เพราะเป็น static HTML/CSS/JS ล้วน (ดู public/exam/README.md)
+#
+# หมายเหตุ: FlowDesk (แอพหลักของ repo นี้) ยัง deploy ผ่าน GitHub Actions ขึ้น
+# GitHub Pages ตามเดิม — ไฟล์นี้ไม่เกี่ยวและไม่กระทบกัน
+# ============================================================================
+
+[build]
+  publish = "public/exam"
+  # ระบุคำสั่งว่างไว้ชัด ๆ กันไม่ให้ Netlify ตรวจเจอ Vite ใน package.json
+  # แล้วไปรัน build ของ FlowDesk แทน
+  command = "echo 'static exam app — no build step needed'"
+
+# ไฟล์ข้อสอบเปลี่ยนเมื่อมีการแก้เนื้อหา — ให้เบราว์เซอร์เช็คกับเซิร์ฟเวอร์ทุกครั้ง
+# กันไม่ให้ผู้ใช้ค้างอยู่กับข้อสอบชุดเก่าหลัง deploy ใหม่
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
