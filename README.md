@@ -46,9 +46,22 @@ src/
   cloud/firebase.js        ขอบเขต Firebase SDK ทั้งหมด
   cloud/diff.js            baseline diff → per-record fanout (pure, มี unit test)
   cloud/useFirebaseSync.js realtime sync hook (inbound merge + outbound debounced push)
+public/exam/             แอพทำข้อสอบการขาย บทที่ 4-8 (static ล้วน — ดู public/exam/README.md)
 tests/                   Playwright smoke (ทุก route + สร้าง→อนุมัติ) + unit tests
 .github/workflows/       ci.yml (ทุก push) + deploy.yml (Pages เมื่อ push main)
 ```
+
+## 📝 แอพทำข้อสอบการขาย (บทที่ 4-8)
+
+นอกจาก FlowDesk แล้ว repo นี้ยังมีแอพทำข้อสอบแยกอีกตัวอยู่ที่ `public/exam/` —
+สุ่มข้อสอบ 60 ข้อ (ปรนัย 40 · จับคู่คำลงช่องว่าง 10 · เติมคำ 10) จากคลัง 209+58+95 ข้อ
+ที่สร้างจากสไลด์ 5 บท เฉลยทันทีทุกข้อ และเก็บคะแนนทุกรอบไว้ใน localStorage
+
+- ใช้งานผ่านเว็บ: `<เว็บที่ deploy>/exam/` หรือ `http://localhost:5173/exam/` ตอน dev
+- หรือเปิดไฟล์ `public/exam/index.html` ตรง ๆ ก็ได้ ไม่ต้องรันเซิร์ฟเวอร์และไม่ต้องต่อเน็ต
+- เป็น static HTML/CSS/JS ล้วน ไม่แตะโค้ด FlowDesk และไม่ต้อง build
+
+รายละเอียดทั้งหมด (รวมวิธีเพิ่ม/แก้ข้อสอบ): **[public/exam/README.md](./public/exam/README.md)**
 
 ## ที่มาของโค้ด (provenance)
 

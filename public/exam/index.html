@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="th" data-theme="auto">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#1f6feb" />
+<meta name="description" content="แอพทำข้อสอบสุ่มจากสไลด์บทที่ 4-8 วิชาการขาย — ปรนัย 40 ข้อ จับคู่คำ 10 ข้อ เติมคำ 10 ข้อ พร้อมเฉลยทันทีและเก็บประวัติคะแนนทุกรอบ" />
+<title>ข้อสอบการขาย บทที่ 4-8 — สุ่มข้อสอบ พร้อมเฉลยทันที</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%9D%3C/text%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700;800&display=swap" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="brand" id="brandBtn" type="button" title="กลับหน้าแรก">
+      <span class="brand-mark">📝</span>
+      <span class="brand-text">
+        <strong>ข้อสอบการขาย</strong>
+        <small>บทที่ 4 – 8</small>
+      </span>
+    </button>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="historyBtn" type="button" title="ประวัติคะแนน" aria-label="ประวัติคะแนน">📊</button>
+      <button class="icon-btn" id="themeBtn" type="button" title="สลับโหมดสว่าง/มืด" aria-label="สลับธีม">🌗</button>
+    </div>
+  </div>
+  <div class="quiz-progress" id="quizProgress" hidden>
+    <div class="quiz-progress-bar"><span id="progressFill"></span></div>
+    <div class="quiz-progress-meta">
+      <span id="progressLabel">ข้อ 1 / 52</span>
+      <span id="liveScore">คะแนน 0</span>
+      <span id="liveTimer">00:00</span>
+    </div>
+  </div>
+</header>
+
+<main id="app">
+
+  <!-- ============================ หน้าแรก ============================ -->
+  <section class="screen" id="screen-home">
+    <div class="hero">
+      <h1>สุ่มข้อสอบจากสไลด์ พร้อมเฉลยทันทีทุกข้อ</h1>
+      <p class="hero-sub">
+        ข้อสอบ 1 ชุดมี <strong>60 ข้อ</strong> — ปรนัย 40 ข้อ · จับคู่คำลงช่องว่าง 10 ข้อ · เติมคำ 10 ข้อ
+        สุ่มใหม่ทุกครั้งจากคลังข้อสอบที่สร้างจากสไลด์บทที่ 4–8
+      </p>
+    </div>
+
+    <div class="stat-row" id="homeStats"></div>
+
+    <div class="card" id="resumeCard" hidden>
+      <h2 class="card-title">▶︎ มีข้อสอบค้างอยู่</h2>
+      <p class="muted" id="resumeInfo"></p>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="resumeBtn" type="button">ทำต่อจากเดิม</button>
+        <button class="btn btn-ghost" id="discardBtn" type="button">ทิ้งแล้วเริ่มใหม่</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">เลือกบทที่จะออกข้อสอบ</h2>
+      <p class="muted">เลือกได้มากกว่า 1 บท — ข้อสอบจะกระจายให้ครบทุกบทที่เลือกโดยอัตโนมัติ</p>
+      <div class="chip-grid" id="chapterChips"></div>
+      <div class="btn-row btn-row-tight">
+        <button class="btn btn-mini" id="selectAllBtn" type="button">เลือกทุกบท</button>
+        <button class="btn btn-mini" id="clearAllBtn" type="button">ล้างการเลือก</button>
+      </div>
+      <p class="bank-note" id="bankNote"></p>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">ตัวเลือกการทำข้อสอบ</h2>
+      <label class="switch">
+        <input type="checkbox" id="optInstant" checked />
+        <span>เฉลยทันทีหลังตอบแต่ละข้อ</span>
+      </label>
+      <label class="switch">
+        <input type="checkbox" id="optShuffleChoices" checked />
+        <span>สลับลำดับตัวเลือกของข้อปรนัย</span>
+      </label>
+      <label class="switch">
+        <input type="checkbox" id="optTimer" checked />
+        <span>จับเวลาระหว่างทำข้อสอบ</span>
+      </label>
+    </div>
+
+    <div class="sticky-cta">
+      <button class="btn btn-primary btn-lg" id="startBtn" type="button">เริ่มทำข้อสอบ 60 ข้อ</button>
+    </div>
+  </section>
+
+  <!-- ============================ หน้าทำข้อสอบ ============================ -->
+  <section class="screen" id="screen-quiz" hidden>
+    <div class="section-badge" id="sectionBadge"></div>
+    <div id="questionHost"></div>
+    <div class="quiz-footer">
+      <button class="btn btn-ghost" id="quitBtn" type="button">ออกจากข้อสอบ</button>
+      <button class="btn btn-primary" id="nextBtn" type="button" disabled>ข้อถัดไป</button>
+    </div>
+  </section>
+
+  <!-- ============================ หน้าสรุปผล ============================ -->
+  <section class="screen" id="screen-result" hidden>
+    <div id="resultHost"></div>
+  </section>
+
+  <!-- ============================ หน้าทบทวนคำตอบ ============================ -->
+  <section class="screen" id="screen-review" hidden>
+    <div class="page-head">
+      <h1>ทบทวนคำตอบ</h1>
+      <div class="seg" id="reviewFilter">
+        <button class="seg-btn is-active" data-filter="all" type="button">ทั้งหมด</button>
+        <button class="seg-btn" data-filter="wrong" type="button">ที่ตอบผิด</button>
+        <button class="seg-btn" data-filter="right" type="button">ที่ตอบถูก</button>
+      </div>
+    </div>
+    <div id="reviewHost"></div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" id="reviewBackBtn" type="button">กลับหน้าสรุปผล</button>
+    </div>
+  </section>
+
+  <!-- ============================ หน้าประวัติคะแนน ============================ -->
+  <section class="screen" id="screen-history" hidden>
+    <div class="page-head"><h1>ประวัติคะแนน</h1></div>
+    <div id="historyHost"></div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" id="exportBtn" type="button">บันทึกประวัติเป็นไฟล์</button>
+      <button class="btn btn-ghost" id="importBtn" type="button">นำเข้าไฟล์ประวัติ</button>
+      <button class="btn btn-danger" id="clearHistoryBtn" type="button">ล้างประวัติทั้งหมด</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json,.json" hidden />
+    <div class="btn-row">
+      <button class="btn btn-primary" id="historyHomeBtn" type="button">กลับหน้าแรก</button>
+    </div>
+  </section>
+
+</main>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="bank.js"></script>
+<script src="data-ch04.js"></script>
+<script src="data-ch05.js"></script>
+<script src="data-ch06.js"></script>
+<script src="data-ch07.js"></script>
+<script src="data-ch08.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -38,5 +38,19 @@ export default [
       // เหมือนกันทั้งต้นฉบับและเวอร์ชันโมดูล จึงคงไว้ตาม parity (ห้ามแก้เนื้อโค้ดที่สกัดมา)
       'no-dupe-keys': 'off'
     }
+  },
+  {
+    // แอพทำข้อสอบใน public/exam — classic script (ไม่ใช่โมดูล) จึงประกาศ global ที่ใช้ร่วมกัน
+    files: ['public/exam/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2020,
+      sourceType: 'script',
+      globals: { ...globals.browser, addChapter: 'readonly' }
+    },
+    rules: {
+      'no-undef': 'error',
+      'no-unused-vars': 'off',
+      'no-empty': 'off'
+    }
   }
 ];

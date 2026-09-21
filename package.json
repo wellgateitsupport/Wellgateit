@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --port 4173 --strictPort",
-    "lint": "eslint src",
+    "lint": "eslint src public/exam",
     "extract": "node scripts/extract.mjs",
     "gen:imports": "node scripts/gen-imports.mjs",
     "icons": "node scripts/generate-icons.mjs",

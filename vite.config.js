@@ -26,6 +26,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: 'index.html',
+        // /exam/ เป็นแอพทำข้อสอบแยกใน public/ — อย่าให้ SW ส่ง index.html ของ FlowDesk แทน
+        navigateFallbackDenylist: [/\/exam\//],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         runtimeCaching: [
           {
