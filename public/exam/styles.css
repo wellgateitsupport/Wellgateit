@@ -249,6 +249,34 @@ strong { font-weight: 700; }
 .stat b { display: block; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
 .stat span { font-size: .75rem; color: var(--muted); }
 
+/* ------------------------------ การ์ดเลือกวิชา ------------------------------ */
+.subject-grid { display: flex; flex-direction: column; gap: .5rem; margin-top: .75rem; }
+
+.subject-card {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: .75rem .85rem;
+  min-height: 56px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.subject-card[aria-pressed="true"] {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+.subject-icon { font-size: 1.5rem; flex: 0 0 auto; }
+.subject-body { display: flex; flex-direction: column; min-width: 0; }
+.subject-body b { font-size: .98rem; }
+.subject-body small { color: var(--muted); font-size: .78rem; }
+
 /* ------------------------------ ชิปเลือกบท ------------------------------ */
 .chip-grid { display: flex; flex-direction: column; gap: .5rem; margin-top: .75rem; }
 
@@ -337,6 +365,12 @@ strong { font-weight: 700; }
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: .1rem .6rem;
+}
+.q-meta .tag-analysis {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  color: var(--warn);
+  font-weight: 600;
 }
 .q-text { font-size: 1.08rem; font-weight: 600; margin-bottom: .9rem; }
 .q-text .blank { color: var(--primary); font-weight: 700; letter-spacing: .05em; }
@@ -568,6 +602,9 @@ strong { font-weight: 700; }
 }
 .seg-btn.is-active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--shadow); }
 
+.seg-wide { display: flex; width: 100%; margin-top: .75rem; }
+.seg-wide .seg-btn { flex: 1 1 0; min-height: 40px; }
+
 .review-item {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -681,6 +718,7 @@ strong { font-weight: 700; }
   .hero h1 { font-size: 1.85rem; }
   #app { padding: 24px 24px 120px; }
   .chip-grid { display: grid; grid-template-columns: repeat(2, 1fr); }
+  .subject-grid { display: grid; grid-template-columns: repeat(2, 1fr); }
   .card { padding: 1.25rem; }
   .q-card { padding: 1.35rem; }
   .q-text { font-size: 1.15rem; }

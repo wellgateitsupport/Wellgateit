@@ -45,7 +45,7 @@ export default [
     languageOptions: {
       ecmaVersion: 2020,
       sourceType: 'script',
-      globals: { ...globals.browser, addChapter: 'readonly' }
+      globals: { ...globals.browser, addSubject: 'readonly', addChapter: 'readonly', addQuestions: 'readonly' }
     },
     rules: {
       'no-undef': 'error',

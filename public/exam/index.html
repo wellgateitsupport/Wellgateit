@@ -4,8 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#1f6feb" />
-<meta name="description" content="แอพทำข้อสอบสุ่มจากสไลด์บทที่ 4-8 วิชาการขาย — ปรนัย 40 ข้อ จับคู่คำ 10 ข้อ เติมคำ 10 ข้อ พร้อมเฉลยทันทีและเก็บประวัติคะแนนทุกรอบ" />
-<title>ข้อสอบการขาย บทที่ 4-8 — สุ่มข้อสอบ พร้อมเฉลยทันที</title>
+<meta name="description" content="แอพทำข้อสอบสุ่ม 2 วิชา — เทคนิคการขาย (บทที่ 4-8) และการจัดการการตลาดสมัยใหม่ (บทที่ 5-9) ปรนัย 40 ข้อ 5 ตัวเลือก จับคู่คำ 10 ข้อ เติมคำ 10 ข้อ มีข้อวิเคราะห์ เฉลยทันที เก็บคะแนนทุกรอบ" />
+<title>คลังข้อสอบ 2 วิชา — สุ่มข้อสอบ พร้อมเฉลยทันที</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%9D%3C/text%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,8 +19,8 @@
     <button class="brand" id="brandBtn" type="button" title="กลับหน้าแรก">
       <span class="brand-mark">📝</span>
       <span class="brand-text">
-        <strong>ข้อสอบการขาย</strong>
-        <small>บทที่ 4 – 8</small>
+        <strong>คลังข้อสอบ</strong>
+        <small id="brandSub">การขาย · การตลาด</small>
       </span>
     </button>
     <div class="topbar-actions">
@@ -45,9 +45,14 @@
     <div class="hero">
       <h1>สุ่มข้อสอบจากสไลด์ พร้อมเฉลยทันทีทุกข้อ</h1>
       <p class="hero-sub">
-        ข้อสอบ 1 ชุดมี <strong>60 ข้อ</strong> — ปรนัย 40 ข้อ · จับคู่คำลงช่องว่าง 10 ข้อ · เติมคำ 10 ข้อ
-        สุ่มใหม่ทุกครั้งจากคลังข้อสอบที่สร้างจากสไลด์บทที่ 4–8
+        ข้อสอบ 1 ชุดมี <strong>60 ข้อ</strong> — ปรนัย 40 ข้อ (5 ตัวเลือก) · จับคู่คำลงช่องว่าง 10 ข้อ · เติมคำ 10 ข้อ
+        มีทั้งข้อความจำและข้อวิเคราะห์ที่ยกสถานการณ์จริงมาให้ตัดสิน สุ่มใหม่ทุกครั้ง
       </p>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">เลือกวิชา</h2>
+      <div class="subject-grid" id="subjectCards"></div>
     </div>
 
     <div class="stat-row" id="homeStats"></div>
@@ -70,6 +75,17 @@
         <button class="btn btn-mini" id="clearAllBtn" type="button">ล้างการเลือก</button>
       </div>
       <p class="bank-note" id="bankNote"></p>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">สัดส่วนข้อปรนัย</h2>
+      <p class="muted">ข้อวิเคราะห์จะยกตัวอย่างสถานการณ์มาให้ แล้วถามว่าเข้าข่ายแนวคิดแบบใด</p>
+      <div class="seg seg-wide" id="mixSeg">
+        <button class="seg-btn" data-mix="recall" type="button">เน้นความจำ</button>
+        <button class="seg-btn is-active" data-mix="balanced" type="button">ผสม</button>
+        <button class="seg-btn" data-mix="analysis" type="button">เน้นวิเคราะห์</button>
+      </div>
+      <p class="bank-note" id="mixNote"></p>
     </div>
 
     <div class="card">
@@ -126,7 +142,10 @@
 
   <!-- ============================ หน้าประวัติคะแนน ============================ -->
   <section class="screen" id="screen-history" hidden>
-    <div class="page-head"><h1>ประวัติคะแนน</h1></div>
+    <div class="page-head">
+      <h1>ประวัติคะแนน</h1>
+      <div class="seg" id="historyFilter"></div>
+    </div>
     <div id="historyHost"></div>
     <div class="btn-row">
       <button class="btn btn-ghost" id="exportBtn" type="button">บันทึกประวัติเป็นไฟล์</button>
@@ -144,11 +163,18 @@
 <div class="toast" id="toast" hidden></div>
 
 <script src="bank.js"></script>
-<script src="data-ch04.js"></script>
-<script src="data-ch05.js"></script>
-<script src="data-ch06.js"></script>
-<script src="data-ch07.js"></script>
-<script src="data-ch08.js"></script>
+<script src="data/00-subjects.js"></script>
+<script src="data/10-sales-ch04.js"></script>
+<script src="data/11-sales-ch05.js"></script>
+<script src="data/12-sales-ch06.js"></script>
+<script src="data/13-sales-ch07.js"></script>
+<script src="data/14-sales-ch08.js"></script>
+<script src="data/19-sales-analysis.js"></script>
+<script src="data/20-mkt-ch05.js"></script>
+<script src="data/21-mkt-ch06.js"></script>
+<script src="data/22-mkt-ch07.js"></script>
+<script src="data/23-mkt-ch08.js"></script>
+<script src="data/24-mkt-ch09.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

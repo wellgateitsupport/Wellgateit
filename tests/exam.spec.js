@@ -75,7 +75,7 @@ test('Exam A: คลังข้อสอบผ่านการตรวจค
   await page.goto('/exam/');
   await expect(page.locator('#startBtn')).toBeEnabled();
 
-  // ตัวตรวจในตัวของ bank.js ต้องไม่พบปัญหาเลย
+  // ตัวตรวจในตัวของ bank.js ต้องไม่พบปัญหาเลย (รวมกฎ "ปรนัยต้องมี 5 ตัวเลือก")
   const problems = await page.evaluate(() => window.EXAM.validate());
   expect(problems, `คลังข้อสอบต้องไม่มีปัญหา: ${problems.join(', ')}`).toEqual([]);
 
@@ -84,8 +84,65 @@ test('Exam A: คลังข้อสอบผ่านการตรวจค
   await page.locator('#startBtn').click();
   await expect(page.locator('#progressLabel')).toHaveText('ข้อ 1 / 60');
   await expect(page.locator('#sectionBadge')).toContainText('ปรนัย');
+  await expect(page.locator('.choice')).toHaveCount(5);
 
   expect(errors, 'ต้องไม่มี pageerror').toHaveLength(0);
+});
+
+test('Exam A2: ทั้งสองวิชาเริ่มทำข้อสอบได้ และข้อที่ออกมาเป็นของวิชานั้นเท่านั้น', async ({ page }) => {
+  const errors = collectPageErrors(page);
+  await page.goto('/exam/');
+
+  const subjects = await page.evaluate(() =>
+    window.EXAM.subjects.map((s) => ({ id: s.id, name: s.name })));
+  expect(subjects.length, 'ต้องมีอย่างน้อย 2 วิชา').toBeGreaterThanOrEqual(2);
+
+  for (const subject of subjects) {
+    await page.goto('/exam/');
+    await page.locator('.subject-card', { hasText: subject.name }).click();
+    await expect(page.locator(`.subject-card[aria-pressed="true"]`)).toContainText(subject.name);
+    await expect(page.locator('#startBtn')).toBeEnabled();
+    await page.locator('#startBtn').click();
+    await expect(page.locator('#screen-quiz')).toBeVisible();
+
+    // ทุกข้อในรอบนี้ต้องมาจากวิชาที่เลือก
+    const allFromSubject = await page.evaluate((subjectId) => {
+      const norm = (s) => s.replace(/_+/g, '').replace(/\s+/g, '');
+      const asked = norm(document.querySelector('.q-text').textContent);
+      const found = window.EXAM.mc.find((q) => norm(q.q) === asked);
+      return found ? found.subject === subjectId : null;
+    }, subject.id);
+    expect(allFromSubject, `ข้อแรกต้องเป็นของวิชา ${subject.name}`).toBe(true);
+
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.locator('#quitBtn').click();
+    await page.locator('#discardBtn').click();
+  }
+
+  expect(errors, 'ต้องไม่มี pageerror').toHaveLength(0);
+});
+
+test('Exam A3: โหมด "เน้นวิเคราะห์" ต้องออกข้อวิเคราะห์ทั้งตอนปรนัย', async ({ page }) => {
+  await page.goto('/exam/');
+  await page.locator('.seg-btn[data-mix="analysis"]').click();
+  await expect(page.locator('#mixNote')).toContainText('ข้อวิเคราะห์ 40 ข้อ');
+  await page.locator('#startBtn').click();
+
+  // ตรวจ 5 ข้อแรกว่าเป็นข้อวิเคราะห์ทั้งหมด (มีป้ายกำกับ)
+  for (let i = 0; i < 5; i++) {
+    await expect(page.locator('.tag-analysis')).toBeVisible();
+    await page.locator('.choice').first().click();
+    await page.locator('#nextBtn').click();
+  }
+
+  // สลับไปโหมดเน้นความจำแล้วต้องไม่มีข้อวิเคราะห์
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.locator('#quitBtn').click();
+  await page.locator('#discardBtn').click();
+  await page.locator('.seg-btn[data-mix="recall"]').click();
+  await expect(page.locator('#mixNote')).toContainText('ข้อวิเคราะห์ 0 ข้อ');
+  await page.locator('#startBtn').click();
+  await expect(page.locator('.tag-analysis')).toHaveCount(0);
 });
 
 test('Exam B: ตอบถูกทุกข้อจนจบ ต้องได้ 60/60 และประวัติถูกบันทึก', async ({ page }) => {
@@ -112,7 +169,12 @@ test('Exam B: ตอบถูกทุกข้อจนจบ ต้องไ�
   // ประวัติต้องถูกบันทึกลง localStorage
   const history = await page.evaluate(() => JSON.parse(localStorage.getItem('examApp.history.v1') || '[]'));
   expect(history).toHaveLength(1);
-  expect(history[0]).toMatchObject({ score: 60, total: 60, percent: 100 });
+  expect(history[0]).toMatchObject({ score: 60, total: 60, percent: 100, subject: 'sales' });
+  expect(history[0].byType.analysis.got + history[0].byType.recall.got,
+    'คะแนนปรนัยแยกตามลักษณะข้อสอบต้องรวมได้ 40').toBe(40);
+
+  // หน้าสรุปต้องมีการ์ดคะแนนแยกตามลักษณะข้อสอบ
+  await expect(page.locator('.card-title', { hasText: 'แยกตามลักษณะข้อสอบ' })).toBeVisible();
 
   // หน้าทบทวนต้องมีครบ 60 ข้อ และกรอง "ที่ตอบผิด" ต้องว่าง
   await page.getByRole('button', { name: 'ทบทวนคำตอบทั้งหมด' }).click();
@@ -127,7 +189,7 @@ test('Exam C: ตอบผิดแล้วต้องเฉลยทันท
   const errors = collectPageErrors(page);
   await page.goto('/exam/');
 
-  // เลือกบทที่ 5 บทเดียว
+  // เลือกบทที่ 5 บทเดียว (ของวิชาแรกที่เลือกไว้)
   await page.locator('#clearAllBtn').click();
   await expect(page.locator('#startBtn')).toBeDisabled();
   await page.locator('.chip', { hasText: 'บทที่ 5' }).click();
@@ -150,6 +212,7 @@ test('Exam C: ตอบผิดแล้วต้องเฉลยทันท
   expect(wrongIndex, 'ต้องมีตัวเลือกที่ผิดให้กดอย่างน้อย 1 ข้อ').toBeGreaterThanOrEqual(0);
   await page.locator('.choice').nth(wrongIndex).click();
 
+  await expect(page.locator('.choice')).toHaveCount(5);
   await expect(page.locator('.feedback.bad')).toBeVisible();
   await expect(page.locator('.feedback-head')).toContainText('คำตอบที่ถูกคือ');
   await expect(page.locator('.feedback-ref')).toContainText('ที่มา:');

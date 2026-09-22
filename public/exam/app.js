@@ -15,6 +15,9 @@
   var N_FILL = 10;        // เติมคำ 10 ข้อ
   var TOTAL = N_MC + N_MATCH_SETS * 5 + N_FILL;
 
+  /* สัดส่วนข้อวิเคราะห์ในตอนปรนัย ตามโหมดที่ผู้ใช้เลือก */
+  var MIX_RATIO = { recall: 0, balanced: 0.6, analysis: 1 };
+
   var KEY_HISTORY = 'examApp.history.v1';
   var KEY_SESSION = 'examApp.session.v1';
   var KEY_THEME = 'examApp.theme.v1';
@@ -104,16 +107,47 @@
     return c ? 'บทที่ ' + c.no : id;
   }
 
+  function chapterTitle(id) {
+    var c = chapterById(id);
+    return c ? 'บทที่ ' + c.no + ' ' + c.title : id;
+  }
+
   /* ------------------------------ สถานะของแอพ ------------------------------ */
   var state = {
     screen: 'home',
-    selected: [],       // รหัสบทที่เลือก
-    prefs: { instant: true, shuffleChoices: true, timer: true },
+    subject: null,      // รหัสวิชาที่เลือกอยู่
+    selected: {},       // { รหัสวิชา: [รหัสบทที่เลือก] }
+    prefs: { instant: true, shuffleChoices: true, timer: true, mix: 'balanced' },
     quiz: null,         // ข้อสอบรอบปัจจุบัน
     lastResult: null,   // ผลรอบล่าสุด (ใช้ในหน้าสรุป/ทบทวน)
     reviewFilter: 'all',
+    historyFilter: 'all',
     tick: null
   };
+
+  function subjectById(id) {
+    for (var i = 0; i < EXAM.subjects.length; i++) {
+      if (EXAM.subjects[i].id === id) return EXAM.subjects[i];
+    }
+    return null;
+  }
+
+  function subjectLabel(id) {
+    var s = subjectById(id);
+    return s ? s.short : 'ไม่ทราบวิชา';
+  }
+
+  function chaptersOf(subjectId) {
+    return EXAM.chapters.filter(function (c) { return c.subject === subjectId; });
+  }
+
+  /** บทที่ผู้ใช้เลือกไว้ของวิชาปัจจุบัน (ยังไม่เคยเลือก = เลือกทุกบท) */
+  function selectedChapters(subjectId) {
+    if (!state.selected[subjectId]) {
+      state.selected[subjectId] = chaptersOf(subjectId).map(function (c) { return c.id; });
+    }
+    return state.selected[subjectId];
+  }
 
   /* ================================ ธีม ================================ */
   function applyTheme(mode) {
@@ -172,8 +206,10 @@
   }
 
   /** สุ่มชุดจับคู่ โดยพยายามไม่ให้ซ้ำบทกัน */
-  function drawMatchSets(chapterIds, count) {
-    var pool = EXAM.matchSets.filter(function (s) { return chapterIds.indexOf(s.ch) !== -1; });
+  function drawMatchSets(subjectId, chapterIds, count) {
+    var pool = EXAM.matchSets.filter(function (s) {
+      return s.subject === subjectId && chapterIds.indexOf(s.ch) !== -1;
+    });
     var byChapter = {};
     shuffle(pool).forEach(function (s) {
       if (!byChapter[s.ch]) byChapter[s.ch] = [];
@@ -190,11 +226,32 @@
     return chosen;
   }
 
-  function buildQuiz(chapterIds) {
-    var mcPool = EXAM.mc.filter(function (q) { return chapterIds.indexOf(q.ch) !== -1; });
-    var fillPool = EXAM.fill.filter(function (q) { return chapterIds.indexOf(q.ch) !== -1; });
+  /**
+   * สุ่มข้อปรนัยตามสัดส่วนข้อวิเคราะห์ที่ผู้ใช้เลือก
+   * ถ้าคลังฝั่งใดมีไม่พอ จะดึงจากอีกฝั่งมาเติมให้ครบ
+   */
+  function drawMC(pool, chapterIds, total, mix) {
+    var analysisPool = pool.filter(function (q) { return q.type === 'analysis'; });
+    var recallPool = pool.filter(function (q) { return q.type !== 'analysis'; });
 
-    var mcItems = drawSpread(mcPool, chapterIds, Math.min(N_MC, mcPool.length)).map(function (q) {
+    var wantAnalysis = Math.min(Math.round(total * MIX_RATIO[mix]), analysisPool.length);
+    var wantRecall = Math.min(total - wantAnalysis, recallPool.length);
+    // ฝั่งใดขาด ให้อีกฝั่งเติมเต็มจนครบจำนวนที่ต้องการ
+    wantAnalysis = Math.min(total - wantRecall, analysisPool.length);
+
+    var picked = drawSpread(analysisPool, chapterIds, wantAnalysis)
+      .concat(drawSpread(recallPool, chapterIds, wantRecall));
+    return shuffle(picked);
+  }
+
+  function buildQuiz(subjectId, chapterIds) {
+    var inScope = function (q) {
+      return q.subject === subjectId && chapterIds.indexOf(q.ch) !== -1;
+    };
+    var mcPool = EXAM.mc.filter(inScope);
+    var fillPool = EXAM.fill.filter(inScope);
+
+    var mcItems = drawMC(mcPool, chapterIds, Math.min(N_MC, mcPool.length), state.prefs.mix).map(function (q) {
       var order = state.prefs.shuffleChoices
         ? shuffle(q.choices.map(function (_, i) { return i; }))
         : q.choices.map(function (_, i) { return i; });
@@ -202,6 +259,7 @@
         kind: 'mc',
         id: q.id,
         ch: q.ch,
+        type: q.type,
         q: q.q,
         choices: order.map(function (i) { return q.choices[i]; }),
         answer: order.indexOf(q.answer),
@@ -212,7 +270,7 @@
       };
     });
 
-    var matchItems = drawMatchSets(chapterIds, N_MATCH_SETS).map(function (s) {
+    var matchItems = drawMatchSets(subjectId, chapterIds, N_MATCH_SETS).map(function (s) {
       return {
         kind: 'match',
         id: s.id,
@@ -245,8 +303,14 @@
     return {
       startedAt: Date.now(),
       elapsed: 0,
+      subject: subjectId,
       chapters: chapterIds.slice(),
-      prefs: { instant: state.prefs.instant, shuffleChoices: state.prefs.shuffleChoices, timer: state.prefs.timer },
+      prefs: {
+        instant: state.prefs.instant,
+        shuffleChoices: state.prefs.shuffleChoices,
+        timer: state.prefs.timer,
+        mix: state.prefs.mix
+      },
       steps: mcItems.concat(matchItems, fillItems),
       index: 0
     };
@@ -278,16 +342,44 @@
   }
 
   /* ============================== หน้าแรก ============================== */
+  function renderSubjectCards() {
+    var host = $('subjectCards');
+    host.textContent = '';
+    EXAM.subjects.forEach(function (subj) {
+      var total = EXAM.count(subj.id);
+      var card = el('button', 'subject-card');
+      card.type = 'button';
+      card.setAttribute('aria-pressed', state.subject === subj.id ? 'true' : 'false');
+      card.appendChild(el('span', 'subject-icon', subj.icon || '📘'));
+      var body = el('div', 'subject-body');
+      body.appendChild(el('b', null, subj.name));
+      body.appendChild(el('small', null, subj.note + ' · คลัง ' + (total.mc + total.fill + total.matchSets * 5) + ' ข้อ'));
+      card.appendChild(body);
+      card.addEventListener('click', function () {
+        state.subject = subj.id;
+        savePrefs();
+        renderHome();
+      });
+      host.appendChild(card);
+    });
+  }
+
   function renderHome() {
-    var history = storageGet(KEY_HISTORY, []);
+    if (!state.subject) state.subject = EXAM.subjects[0].id;
+    var subjectId = state.subject;
+    var subject = subjectById(subjectId);
+    $('brandSub').textContent = subject.short + ' · ' + subject.note;
+
+    renderSubjectCards();
+
+    /* สถิติของวิชาที่เลือก */
+    var history = storageGet(KEY_HISTORY, []).filter(function (r) { return r.subject === subjectId; });
     var stats = $('homeStats');
     stats.textContent = '';
-
     var best = history.reduce(function (m, r) { return Math.max(m, r.percent); }, 0);
     var avg = history.length
-      ? Math.round(history.reduce(function (s, r) { return s + r.percent; }, 0) / history.length)
+      ? Math.round(history.reduce(function (s2, r) { return s2 + r.percent; }, 0) / history.length)
       : 0;
-
     [
       [history.length, 'รอบที่ทำแล้ว'],
       [history.length ? avg + '%' : '—', 'คะแนนเฉลี่ย'],
@@ -299,65 +391,71 @@
       stats.appendChild(box);
     });
 
-    // ชิปเลือกบท
+    /* ชิปเลือกบทของวิชานี้ */
+    var chosen = selectedChapters(subjectId);
     var grid = $('chapterChips');
     grid.textContent = '';
-    EXAM.chapters.forEach(function (c) {
-      var mc = EXAM.mc.filter(function (q) { return q.ch === c.id; }).length;
-      var fill = EXAM.fill.filter(function (q) { return q.ch === c.id; }).length;
-      var sets = EXAM.matchSets.filter(function (s) { return s.ch === c.id; }).length;
-
+    chaptersOf(subjectId).forEach(function (c) {
+      var n = EXAM.count(subjectId, [c.id]);
       var chip = el('button', 'chip');
       chip.type = 'button';
-      chip.setAttribute('aria-pressed', state.selected.indexOf(c.id) !== -1 ? 'true' : 'false');
+      chip.setAttribute('aria-pressed', chosen.indexOf(c.id) !== -1 ? 'true' : 'false');
       chip.appendChild(el('span', 'chip-check', '✓'));
-
       var body = el('div', 'chip-body');
       body.appendChild(el('b', null, 'บทที่ ' + c.no + ' ' + c.title));
-      body.appendChild(el('small', null, 'ปรนัย ' + mc + ' · เติมคำ ' + fill + ' · จับคู่ ' + sets + ' ชุด'));
+      body.appendChild(el('small', null,
+        'ปรนัย ' + n.mc + ' (วิเคราะห์ ' + n.analysis + ') · เติมคำ ' + n.fill + ' · จับคู่ ' + n.matchSets + ' ชุด'));
       chip.appendChild(body);
-
       chip.addEventListener('click', function () {
-        var at = state.selected.indexOf(c.id);
-        if (at === -1) state.selected.push(c.id); else state.selected.splice(at, 1);
+        var list = selectedChapters(subjectId);
+        var at = list.indexOf(c.id);
+        if (at === -1) list.push(c.id); else list.splice(at, 1);
         savePrefs();
         renderHome();
       });
       grid.appendChild(chip);
     });
 
-    // สรุปคลังข้อสอบของบทที่เลือก + ปุ่มเริ่ม
-    var sel = state.selected;
-    var mcCount = EXAM.mc.filter(function (q) { return sel.indexOf(q.ch) !== -1; }).length;
-    var fillCount = EXAM.fill.filter(function (q) { return sel.indexOf(q.ch) !== -1; }).length;
-    var setCount = EXAM.matchSets.filter(function (s) { return sel.indexOf(s.ch) !== -1; }).length;
-
+    /* สรุปคลังข้อสอบ + ปุ่มเริ่ม */
+    var n = EXAM.count(subjectId, chosen);
     var startBtn = $('startBtn');
     var note = $('bankNote');
-
-    if (!sel.length) {
+    if (!chosen.length) {
       note.textContent = 'ยังไม่ได้เลือกบท — เลือกอย่างน้อย 1 บทเพื่อเริ่มทำข้อสอบ';
       startBtn.disabled = true;
       startBtn.textContent = 'เลือกบทก่อนเริ่มทำข้อสอบ';
     } else {
-      var willMc = Math.min(N_MC, mcCount);
-      var willFill = Math.min(N_FILL, fillCount);
-      var willMatch = Math.min(N_MATCH_SETS, setCount) * 5;
+      var willMc = Math.min(N_MC, n.mc);
+      var willFill = Math.min(N_FILL, n.fill);
+      var willMatch = Math.min(N_MATCH_SETS, n.matchSets) * 5;
       var total = willMc + willFill + willMatch;
-      note.textContent = 'คลังข้อสอบของบทที่เลือก: ปรนัย ' + mcCount + ' ข้อ · เติมคำ ' + fillCount +
-        ' ข้อ · จับคู่ ' + setCount + ' ชุด — รอบนี้จะได้ ' + total + ' ข้อ' +
-        (total < TOTAL ? ' (น้อยกว่า ' + TOTAL + ' ข้อเพราะคลังของบทที่เลือกมีไม่พอ)' : '');
+      note.textContent = 'คลังของบทที่เลือก: ปรนัย ' + n.mc + ' ข้อ (วิเคราะห์ ' + n.analysis +
+        ' / ความจำ ' + n.recall + ') · เติมคำ ' + n.fill + ' ข้อ · จับคู่ ' + n.matchSets + ' ชุด' +
+        (total < TOTAL ? ' — รอบนี้จะได้ ' + total + ' ข้อ (คลังของบทที่เลือกมีไม่พอ ' + TOTAL + ' ข้อ)' : '');
       startBtn.disabled = false;
       startBtn.textContent = 'เริ่มทำข้อสอบ ' + total + ' ข้อ';
     }
 
-    // ข้อสอบที่ค้างไว้
+    /* คำอธิบายสัดส่วนข้อวิเคราะห์ */
+    var wantAnalysis = Math.min(Math.round(N_MC * MIX_RATIO[state.prefs.mix]), n.analysis);
+    var wantRecall = Math.min(Math.min(N_MC, n.mc) - wantAnalysis, n.recall);
+    wantAnalysis = Math.min(Math.min(N_MC, n.mc) - wantRecall, n.analysis);
+    $('mixNote').textContent = chosen.length
+      ? 'ตอนปรนัยรอบนี้: ข้อวิเคราะห์ ' + wantAnalysis + ' ข้อ · ข้อความจำ ' + wantRecall + ' ข้อ'
+      : '';
+    var mixButtons = $('mixSeg').querySelectorAll('.seg-btn');
+    for (var i = 0; i < mixButtons.length; i++) {
+      mixButtons[i].classList.toggle('is-active', mixButtons[i].dataset.mix === state.prefs.mix);
+    }
+
+    /* ข้อสอบที่ค้างไว้ */
     var saved = storageGet(KEY_SESSION, null);
     var resumeCard = $('resumeCard');
     if (saved && saved.steps && saved.index < saved.steps.length) {
       resumeCard.hidden = false;
-      $('resumeInfo').textContent = 'ทำค้างไว้เมื่อ ' + fmtDate(saved.startedAt) +
-        ' — ถึงข้อ ' + questionNumber(saved, saved.index) + ' จาก ' + quizTotal(saved) + ' ข้อ';
+      $('resumeInfo').textContent = 'วิชา' + subjectLabel(saved.subject) + ' · ทำค้างไว้เมื่อ ' +
+        fmtDate(saved.startedAt) + ' — ถึงข้อ ' + questionNumber(saved, saved.index) +
+        ' จาก ' + quizTotal(saved) + ' ข้อ';
     } else {
       resumeCard.hidden = true;
     }
@@ -368,7 +466,7 @@
   }
 
   function savePrefs() {
-    storageSet(KEY_PREFS, { selected: state.selected, prefs: state.prefs });
+    storageSet(KEY_PREFS, { subject: state.subject, selected: state.selected, prefs: state.prefs });
   }
 
   /* ============================== นาฬิกาจับเวลา ============================== */
@@ -411,6 +509,9 @@
       meta.appendChild(el('span', 'tag', step.items.length + ' คะแนน'));
     } else {
       meta.appendChild(el('span', 'tag', 'ข้อ ' + questionNumber(quiz, quiz.index)));
+    }
+    if (step.kind === 'mc' && step.type === 'analysis') {
+      meta.appendChild(el('span', 'tag tag-analysis', '🔍 วิเคราะห์'));
     }
     return meta;
   }
@@ -718,11 +819,17 @@
     var percent = total ? Math.round((score / total) * 100) : 0;
 
     var bySection = { mc: { got: 0, max: 0 }, match: { got: 0, max: 0 }, fill: { got: 0, max: 0 } };
+    var byType = { analysis: { got: 0, max: 0 }, recall: { got: 0, max: 0 } };
     var byChapter = {};
     quiz.steps.forEach(function (step) {
       var got = stepPoints(step), max = stepMax(step);
       bySection[step.kind].got += got;
       bySection[step.kind].max += max;
+      if (step.kind === 'mc') {
+        var bucket = step.type === 'analysis' ? byType.analysis : byType.recall;
+        bucket.got += got;
+        bucket.max += max;
+      }
       if (!byChapter[step.ch]) byChapter[step.ch] = { got: 0, max: 0 };
       byChapter[step.ch].got += got;
       byChapter[step.ch].max += max;
@@ -730,12 +837,14 @@
 
     var result = {
       at: Date.now(),
+      subject: quiz.subject,
       score: score,
       total: total,
       percent: percent,
       seconds: quiz.elapsed,
       chapters: quiz.chapters.slice(),
       bySection: bySection,
+      byType: byType,
       byChapter: byChapter,
       steps: quiz.steps
     };
@@ -745,12 +854,14 @@
     var history = storageGet(KEY_HISTORY, []);
     history.unshift({
       at: result.at,
+      subject: quiz.subject,
       score: score,
       total: total,
       percent: percent,
       seconds: quiz.elapsed,
       chapters: result.chapters,
       bySection: bySection,
+      byType: byType,
       byChapter: byChapter
     });
     if (history.length > 200) history.length = 200;
@@ -796,7 +907,8 @@
     var g = gradeOf(result.percent);
     hero.appendChild(el('div', 'grade ' + g.cls, g.text));
     hero.appendChild(el('div', 'score-meta',
-      'ใช้เวลา ' + (result.seconds ? fmtTime(result.seconds) : 'ไม่ได้จับเวลา') +
+      'วิชา' + subjectLabel(result.subject) +
+      ' · ใช้เวลา ' + (result.seconds ? fmtTime(result.seconds) : 'ไม่ได้จับเวลา') +
       ' · ' + fmtDate(result.at)));
     host.appendChild(hero);
 
@@ -809,10 +921,34 @@
     sec.appendChild(secList);
     host.appendChild(sec);
 
+    if (result.byType && (result.byType.analysis.max || result.byType.recall.max)) {
+      var typeCard = el('div', 'card');
+      typeCard.appendChild(el('h2', 'card-title', 'คะแนนตอนปรนัย แยกตามลักษณะข้อสอบ'));
+      var typeList = el('div', 'bar-list');
+      if (result.byType.recall.max) {
+        typeList.appendChild(barRow('ข้อความจำ (นิยาม ตัวเลข องค์ประกอบ)', result.byType.recall.got, result.byType.recall.max));
+      }
+      if (result.byType.analysis.max) {
+        typeList.appendChild(barRow('ข้อวิเคราะห์ (ยกสถานการณ์มาให้ตัดสิน)', result.byType.analysis.got, result.byType.analysis.max));
+      }
+      typeCard.appendChild(typeList);
+      var a = result.byType.analysis, r = result.byType.recall;
+      if (a.max && r.max) {
+        var aPct = a.got / a.max, rPct = r.got / r.max;
+        typeCard.appendChild(el('p', 'muted',
+          Math.abs(aPct - rPct) < 0.1
+            ? '📌 ทำได้พอ ๆ กันทั้งสองแบบ'
+            : aPct < rPct
+              ? '📌 ข้อวิเคราะห์ยังอ่อนกว่าข้อความจำ — ลองอ่านคำเฉลยของข้อที่ผิดว่าโจทย์ชี้ไปที่แนวคิดใด'
+              : '📌 ข้อความจำยังอ่อนกว่าข้อวิเคราะห์ — ลองทบทวนตัวเลขและองค์ประกอบของแต่ละกรอบแนวคิด'));
+      }
+      host.appendChild(typeCard);
+    }
+
     var chap = el('div', 'card');
     chap.appendChild(el('h2', 'card-title', 'คะแนนแยกตามบท'));
     var chapList = el('div', 'bar-list');
-    EXAM.chapters.forEach(function (c) {
+    chaptersOf(result.subject).forEach(function (c) {
       var data = result.byChapter[c.id];
       if (!data) return;
       chapList.appendChild(barRow('บทที่ ' + c.no + ' ' + c.title, data.got, data.max));
@@ -820,7 +956,7 @@
     chap.appendChild(chapList);
 
     var weakest = null;
-    EXAM.chapters.forEach(function (c) {
+    chaptersOf(result.subject).forEach(function (c) {
       var d = result.byChapter[c.id];
       if (!d || !d.max) return;
       var p = d.got / d.max;
@@ -839,7 +975,7 @@
 
     var againBtn = el('button', 'btn', 'สุ่มชุดใหม่ ทำอีกครั้ง');
     againBtn.type = 'button';
-    againBtn.addEventListener('click', function () { startQuiz(result.chapters); });
+    againBtn.addEventListener('click', function () { startQuiz(result.subject, result.chapters); });
 
     var homeBtn = el('button', 'btn btn-ghost', 'กลับหน้าแรก');
     homeBtn.type = 'button';
@@ -939,13 +1075,35 @@
   }
 
   /* ============================= ประวัติคะแนน ============================= */
+  function renderHistoryFilter() {
+    var host = $('historyFilter');
+    host.textContent = '';
+    var options = [{ id: 'all', label: 'ทุกวิชา' }].concat(
+      EXAM.subjects.map(function (s2) { return { id: s2.id, label: s2.short }; })
+    );
+    options.forEach(function (opt) {
+      var btn = el('button', 'seg-btn' + (state.historyFilter === opt.id ? ' is-active' : ''), opt.label);
+      btn.type = 'button';
+      btn.addEventListener('click', function () {
+        state.historyFilter = opt.id;
+        renderHistory();
+      });
+      host.appendChild(btn);
+    });
+  }
+
   function renderHistory() {
+    renderHistoryFilter();
     var host = $('historyHost');
     host.textContent = '';
-    var history = storageGet(KEY_HISTORY, []);
+    var history = storageGet(KEY_HISTORY, []).filter(function (r) {
+      return state.historyFilter === 'all' || r.subject === state.historyFilter;
+    });
 
     if (!history.length) {
-      host.appendChild(el('div', 'empty', 'ยังไม่มีประวัติ — ทำข้อสอบสักรอบแล้วคะแนนจะถูกบันทึกไว้ที่นี่'));
+      host.appendChild(el('div', 'empty', state.historyFilter === 'all'
+        ? 'ยังไม่มีประวัติ — ทำข้อสอบสักรอบแล้วคะแนนจะถูกบันทึกไว้ที่นี่'
+        : 'ยังไม่มีประวัติของวิชานี้'));
       return;
     }
 
@@ -976,16 +1134,20 @@
     chartCard.appendChild(el('p', 'muted', 'ค่าเฉลี่ย 5 รอบล่าสุด: ' + avg5 + '%'));
     host.appendChild(chartCard);
 
-    history.forEach(function (record, index) {
+    history.forEach(function (record) {
       var row = el('div', 'history-item');
       var badge = el('div', 'history-score' + (record.percent >= 70 ? ' ok' : record.percent < 50 ? ' bad' : ''),
         record.percent + '%');
       row.appendChild(badge);
       row.appendChild(el('div', 'history-when', fmtDate(record.at)));
 
-      var chapterText = record.chapters && record.chapters.length === EXAM.chapters.length
+      var subjectChapters = record.subject ? chaptersOf(record.subject).length : 0;
+      var chapterText = record.chapters && subjectChapters && record.chapters.length === subjectChapters
         ? 'ทุกบท'
         : (record.chapters || []).map(function (id) { return chapterLabel(id).replace('บทที่ ', 'บท '); }).join(', ');
+      var typeText = record.byType && record.byType.analysis.max
+        ? ' · วิเคราะห์ ' + record.byType.analysis.got + '/' + record.byType.analysis.max
+        : '';
 
       var parts = record.bySection
         ? ' · ปรนัย ' + record.bySection.mc.got + '/' + record.bySection.mc.max +
@@ -994,16 +1156,17 @@
         : '';
 
       row.appendChild(el('div', 'history-sub',
+        (record.subject ? 'วิชา' + subjectLabel(record.subject) + ' · ' : '') +
         record.score + '/' + record.total + ' คะแนน · ' + (record.seconds ? fmtTime(record.seconds) : 'ไม่จับเวลา') +
-        ' · ' + chapterText + parts));
+        ' · ' + chapterText + parts + typeText));
 
       var del = el('button', 'history-del', '🗑');
       del.type = 'button';
       del.title = 'ลบรอบนี้';
       del.addEventListener('click', function () {
-        var current = storageGet(KEY_HISTORY, []);
-        current.splice(index, 1);
-        storageSet(KEY_HISTORY, current);
+        // กรองด้วย timestamp ไม่ใช่ index เพราะรายการที่แสดงอาจถูกกรองตามวิชาไว้แล้ว
+        var kept = storageGet(KEY_HISTORY, []).filter(function (r) { return r.at !== record.at; });
+        storageSet(KEY_HISTORY, kept);
         renderHistory();
         toast('ลบแล้ว');
       });
@@ -1013,12 +1176,16 @@
   }
 
   /* ============================== เริ่ม / ออก ============================== */
-  function startQuiz(chapterIds) {
-    var ids = (chapterIds && chapterIds.length ? chapterIds : state.selected)
-      .filter(function (id) { return chapterById(id); });
+  function startQuiz(subjectId, chapterIds) {
+    var subject = subjectId || state.subject;
+    var ids = (chapterIds && chapterIds.length ? chapterIds : selectedChapters(subject))
+      .filter(function (id) {
+        var c = chapterById(id);
+        return c && c.subject === subject;
+      });
     if (!ids.length) { toast('เลือกบทอย่างน้อย 1 บทก่อน'); return; }
 
-    state.quiz = buildQuiz(ids);
+    state.quiz = buildQuiz(subject, ids);
     if (!state.quiz.steps.length) { toast('คลังข้อสอบของบทที่เลือกว่างเปล่า'); return; }
     saveSession();
     show('quiz');
@@ -1103,13 +1270,23 @@
     if (problems.length) console.warn('พบปัญหาในคลังข้อสอบ:', problems);
 
     var saved = storageGet(KEY_PREFS, null);
-    state.selected = (saved && Array.isArray(saved.selected) && saved.selected.length)
-      ? saved.selected.filter(function (id) { return chapterById(id); })
-      : EXAM.chapters.map(function (c) { return c.id; });
+    state.subject = (saved && subjectById(saved.subject)) ? saved.subject : EXAM.subjects[0].id;
+    if (saved && saved.selected && typeof saved.selected === 'object' && !Array.isArray(saved.selected)) {
+      EXAM.subjects.forEach(function (subj) {
+        var list = saved.selected[subj.id];
+        if (Array.isArray(list)) {
+          state.selected[subj.id] = list.filter(function (id) {
+            var c = chapterById(id);
+            return c && c.subject === subj.id;
+          });
+        }
+      });
+    }
     if (saved && saved.prefs) {
       state.prefs.instant = saved.prefs.instant !== false;
       state.prefs.shuffleChoices = saved.prefs.shuffleChoices !== false;
       state.prefs.timer = saved.prefs.timer !== false;
+      if (MIX_RATIO[saved.prefs.mix] !== undefined) state.prefs.mix = saved.prefs.mix;
     }
 
     initTheme();
@@ -1122,14 +1299,22 @@
       if (state.screen === 'quiz') { toast('กด "ออกจากข้อสอบ" ด้านล่างก่อน'); return; }
       renderHistory(); show('history');
     });
+    $('clearHistoryBtn').textContent = 'ล้างประวัติทั้งหมด';
 
-    $('startBtn').addEventListener('click', function () { startQuiz(state.selected); });
+    $('startBtn').addEventListener('click', function () { startQuiz(state.subject); });
     $('selectAllBtn').addEventListener('click', function () {
-      state.selected = EXAM.chapters.map(function (c) { return c.id; });
+      state.selected[state.subject] = chaptersOf(state.subject).map(function (c) { return c.id; });
       savePrefs(); renderHome();
     });
     $('clearAllBtn').addEventListener('click', function () {
-      state.selected = []; savePrefs(); renderHome();
+      state.selected[state.subject] = []; savePrefs(); renderHome();
+    });
+    $('mixSeg').addEventListener('click', function (ev) {
+      var btn = ev.target.closest('.seg-btn');
+      if (!btn) return;
+      state.prefs.mix = btn.dataset.mix;
+      savePrefs();
+      renderHome();
     });
 
     ['optInstant', 'optShuffleChoices', 'optTimer'].forEach(function (id) {
