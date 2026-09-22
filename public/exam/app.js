@@ -530,7 +530,7 @@
     showFieldError('');
     renderIconPicker(subj.icon || '📘');
     $('subjectDialog').hidden = false;
-    setTimeout(function () { $('fieldName').focus({ preventScroll: true }); }, 50);
+    $('fieldName').focus({ preventScroll: true });
   }
 
   function closeSubjectDialog() {
@@ -862,7 +862,10 @@
     if (step.done) {
       if (state.quiz.prefs.instant) input.classList.add(step.correct ? 'is-correct' : 'is-wrong');
     } else {
-      setTimeout(function () { input.focus({ preventScroll: true }); }, 60);
+      setTimeout(function () {
+        // โฟกัสเฉพาะตอนที่ผู้ใช้ยังไม่ได้ไปจิ้มที่อื่น กันการแย่งโฟกัสกลางคัน
+        if (document.activeElement === document.body) input.focus({ preventScroll: true });
+      }, 0);
     }
   }
 
@@ -1539,7 +1542,7 @@
       subjectPanelOpen = !subjectPanelOpen;
       renderSubjectList();
       if (subjectPanelOpen && EXAM.subjects.length >= SEARCH_THRESHOLD) {
-        setTimeout(function () { $('subjectSearch').focus({ preventScroll: true }); }, 50);
+        $('subjectSearch').focus({ preventScroll: true });
       }
     });
     $('subjectSearch').addEventListener('input', function (ev) {
