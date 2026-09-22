@@ -67,6 +67,10 @@
 
 * { box-sizing: border-box; }
 
+/* display อื่น ๆ ใน stylesheet ชนะ display:none ของ attribute hidden
+   จึงต้องบังคับไว้ ไม่งั้นกล่องที่ซ่อนอยู่จะยังกินคลิกอยู่ */
+[hidden] { display: none !important; }
+
 html { -webkit-text-size-adjust: 100%; }
 
 body {
@@ -249,33 +253,154 @@ strong { font-weight: 700; }
 .stat b { display: block; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
 .stat span { font-size: .75rem; color: var(--muted); }
 
-/* ------------------------------ การ์ดเลือกวิชา ------------------------------ */
-.subject-grid { display: flex; flex-direction: column; gap: .5rem; margin-top: .75rem; }
+/* ------------------------------ เลือก/แก้ไขวิชา ------------------------------ */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+.card-head .card-title { margin-bottom: 0; }
 
-.subject-card {
+/* วิชาที่กำลังเลือกอยู่ */
+.subject-current {
   display: flex;
   align-items: center;
   gap: .75rem;
-  width: 100%;
-  text-align: left;
+  border: 1px solid var(--primary);
+  background: var(--primary-soft);
+  border-radius: var(--radius-sm);
+  padding: .75rem .85rem;
+  margin-top: .75rem;
+}
+.subject-current .subject-body { flex: 1 1 auto; }
+
+/* รายการวิชาทั้งหมด — เลื่อนได้เมื่อวิชาเยอะ */
+.subject-list {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  margin-top: .6rem;
+  max-height: 46vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+}
+.subject-search { margin-top: .75rem; }
+.subject-search .text-input { font-size: .95rem; }
+
+.subject-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
   border: 1px solid var(--border);
   background: var(--surface-2);
   border-radius: var(--radius-sm);
-  padding: .75rem .85rem;
-  min-height: 56px;
+  padding: .1rem .35rem .1rem .1rem;
+}
+.subject-row.is-current { border-color: var(--primary); background: var(--primary-soft); }
+
+.subject-pick {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: .65rem .5rem;
+  min-height: var(--tap);
   cursor: pointer;
   font: inherit;
   color: inherit;
+  border-radius: var(--radius-sm);
 }
-.subject-card[aria-pressed="true"] {
-  border-color: var(--primary);
-  background: var(--primary-soft);
-  box-shadow: inset 3px 0 0 var(--primary);
-}
-.subject-icon { font-size: 1.5rem; flex: 0 0 auto; }
+.subject-icon { font-size: 1.45rem; flex: 0 0 auto; line-height: 1; }
 .subject-body { display: flex; flex-direction: column; min-width: 0; }
-.subject-body b { font-size: .98rem; }
+.subject-body b {
+  font-size: .96rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .subject-body small { color: var(--muted); font-size: .78rem; }
+.subject-check { flex: 0 0 auto; color: var(--primary); font-weight: 700; }
+
+.subject-edit {
+  flex: 0 0 auto;
+  min-width: 40px;
+  min-height: 40px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: .95rem;
+}
+.subject-edit:hover { border-color: var(--primary); color: var(--primary); background: var(--surface); }
+
+/* ------------------------------ กล่องซ้อน (dialog) ------------------------------ */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(8, 14, 26, .55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  animation: fade .15s ease;
+}
+.dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: var(--shadow);
+  padding: 1.1rem 1rem calc(1.1rem + env(safe-area-inset-bottom));
+  width: 100%;
+  max-width: 520px;
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+.field { display: flex; flex-direction: column; gap: .3rem; margin-top: .8rem; }
+.field > span { font-size: .85rem; color: var(--muted); }
+.field-icon { max-width: 6rem; text-align: center; font-size: 1.4rem; }
+
+.icon-picker { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .5rem; }
+.icon-option {
+  min-width: 42px;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 1.25rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.icon-option:hover, .icon-option.is-active { border-color: var(--primary); background: var(--primary-soft); }
+
+.field-error {
+  color: var(--bad);
+  font-size: .85rem;
+  margin: .6rem 0 0;
+  font-weight: 600;
+}
+
+/* ตัวกรองวิชาแบบ dropdown (ใช้เมื่อมีวิชาเยอะ) */
+.filter-select {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: inherit;
+  border-radius: var(--radius-sm);
+  padding: .5rem .7rem;
+  min-height: 40px;
+  font: inherit;
+  font-size: .9rem;
+  max-width: 60vw;
+}
 
 /* ------------------------------ ชิปเลือกบท ------------------------------ */
 .chip-grid { display: flex; flex-direction: column; gap: .5rem; margin-top: .75rem; }
@@ -415,7 +540,11 @@ strong { font-weight: 700; }
 
 /* ------------------------------ เติมคำ ------------------------------ */
 .fill-form { display: flex; flex-direction: column; gap: .6rem; }
-.fill-input {
+
+/* .fill-input = ช่องตอบข้อเติมคำโดยเฉพาะ (แอพและเทสต์ใช้คลาสนี้ระบุชนิดคำถาม)
+   ช่องกรอกอื่น ๆ ในแอพใช้ .text-input ที่หน้าตาเหมือนกันแต่ไม่ชนกัน */
+.fill-input,
+.text-input {
   width: 100%;
   border: 1px solid var(--border);
   background: var(--surface-2);
@@ -426,7 +555,8 @@ strong { font-weight: 700; }
   font: inherit;
   font-size: 1.05rem;
 }
-.fill-input:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+.fill-input:focus,
+.text-input:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
 .fill-input.is-correct { border-color: var(--ok); background: var(--ok-soft); }
 .fill-input.is-wrong { border-color: var(--bad); background: var(--bad-soft); }
 .hint { font-size: .85rem; color: var(--muted); }
@@ -718,7 +848,9 @@ strong { font-weight: 700; }
   .hero h1 { font-size: 1.85rem; }
   #app { padding: 24px 24px 120px; }
   .chip-grid { display: grid; grid-template-columns: repeat(2, 1fr); }
-  .subject-grid { display: grid; grid-template-columns: repeat(2, 1fr); }
+  .subject-list { display: grid; grid-template-columns: repeat(2, 1fr); align-content: start; }
+  .overlay { align-items: center; padding: 24px; }
+  .dialog { border-radius: var(--radius); }
   .card { padding: 1.25rem; }
   .q-card { padding: 1.35rem; }
   .q-text { font-size: 1.15rem; }

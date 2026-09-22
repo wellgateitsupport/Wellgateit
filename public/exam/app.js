@@ -22,6 +22,14 @@
   var KEY_SESSION = 'examApp.session.v1';
   var KEY_THEME = 'examApp.theme.v1';
   var KEY_PREFS = 'examApp.prefs.v1';
+  var KEY_SUBJECTS = 'examApp.subjects.v1';
+
+  /* จำนวนวิชาที่เริ่มแสดงช่องค้นหา — ต่ำกว่านี้เลื่อนหาเองได้สบาย */
+  var SEARCH_THRESHOLD = 6;
+  /* จำนวนวิชาที่เริ่มเปลี่ยนตัวกรองประวัติจากปุ่มเป็น dropdown */
+  var FILTER_SELECT_THRESHOLD = 4;
+
+  var ICON_CHOICES = ['📘', '🤝', '📈', '🧮', '⚖️', '🧪', '💡', '🗂️', '🩺', '🌏', '🎨', '💻'];
 
   var CHOICE_KEYS = ['ก', 'ข', 'ค', 'ง', 'จ'];
 
@@ -124,6 +132,46 @@
     historyFilter: 'all',
     tick: null
   };
+
+  /* ---------------------- ชื่อวิชาที่ผู้ใช้แก้ไขเอง ---------------------- */
+
+  /** เก็บค่าตั้งต้นจากไฟล์ข้อมูลไว้ก่อน แล้วทับด้วยค่าที่ผู้ใช้บันทึกไว้ */
+  function applySubjectOverrides() {
+    var saved = storageGet(KEY_SUBJECTS, {}) || {};
+    EXAM.subjects.forEach(function (subj) {
+      if (!subj.original) {
+        subj.original = { name: subj.name, short: subj.short, icon: subj.icon || '📘' };
+      }
+      var o = saved[subj.id];
+      subj.name = (o && o.name) || subj.original.name;
+      subj.short = (o && o.short) || subj.original.short;
+      subj.icon = (o && o.icon) || subj.original.icon;
+      subj.renamed = !!o;
+    });
+  }
+
+  function saveSubjectOverride(id, values) {
+    var saved = storageGet(KEY_SUBJECTS, {}) || {};
+    saved[id] = values;
+    var ok = storageSet(KEY_SUBJECTS, saved);
+    applySubjectOverrides();
+    return ok;
+  }
+
+  function resetSubjectOverride(id) {
+    var saved = storageGet(KEY_SUBJECTS, {}) || {};
+    delete saved[id];
+    storageSet(KEY_SUBJECTS, saved);
+    applySubjectOverrides();
+  }
+
+  /** ช่วงบทของวิชา คำนวณจากข้อมูลจริง ไม่ต้องเก็บไว้ในไฟล์ */
+  function subjectNote(subjectId) {
+    var nos = chaptersOf(subjectId).map(function (c) { return c.no; }).sort(function (a, b) { return a - b; });
+    if (!nos.length) return 'ยังไม่มีบท';
+    if (nos.length === 1) return 'บทที่ ' + nos[0];
+    return 'บทที่ ' + nos[0] + ' – ' + nos[nos.length - 1];
+  }
 
   function subjectById(id) {
     for (var i = 0; i < EXAM.subjects.length; i++) {
@@ -342,33 +390,179 @@
   }
 
   /* ============================== หน้าแรก ============================== */
-  function renderSubjectCards() {
+  /* --------------------- ตัวเลือกวิชา (รองรับวิชาจำนวนมาก) --------------------- */
+  var subjectQuery = '';
+  var subjectPanelOpen = false;
+
+  /** จำนวนข้อทั้งหมดของวิชา (ใช้โชว์ขนาดคลัง) */
+  function subjectBankSize(subjectId) {
+    var n = EXAM.count(subjectId);
+    return n.mc + n.fill + n.matchSets * EXAM.ITEMS_PER_MATCH_SET;
+  }
+
+  function subjectSummary(subjectId) {
+    return subjectNote(subjectId) + ' · คลัง ' + subjectBankSize(subjectId) + ' ข้อ';
+  }
+
+  /** แถบแสดงวิชาที่กำลังเลือกอยู่ */
+  function renderCurrentSubject() {
+    var subj = subjectById(state.subject);
+    var host = $('subjectCurrent');
+    host.textContent = '';
+
+    var bar = el('div', 'subject-current');
+    bar.appendChild(el('span', 'subject-icon', subj.icon || '📘'));
+    var body = el('div', 'subject-body');
+    body.appendChild(el('b', null, subj.name));
+    body.appendChild(el('small', null, subjectSummary(subj.id)));
+    bar.appendChild(body);
+
+    var edit = el('button', 'subject-edit', '✏️');
+    edit.type = 'button';
+    edit.title = 'แก้ไขชื่อวิชา';
+    edit.setAttribute('aria-label', 'แก้ไขชื่อวิชา ' + subj.name);
+    edit.addEventListener('click', function () { openSubjectDialog(subj.id); });
+    bar.appendChild(edit);
+
+    host.appendChild(bar);
+  }
+
+  /** รายการวิชาทั้งหมด พร้อมค้นหาเมื่อมีวิชาเยอะ */
+  function renderSubjectList() {
+    var all = EXAM.subjects;
+    var q = subjectQuery.trim().toLowerCase();
+    var shown = q
+      ? all.filter(function (s2) {
+          return (s2.name + ' ' + s2.short + ' ' + (s2.en || '')).toLowerCase().indexOf(q) !== -1;
+        })
+      : all;
+
+    $('subjectSearchWrap').hidden = all.length < SEARCH_THRESHOLD;
+    $('subjectPanel').hidden = !subjectPanelOpen;
+    // เปิดรายการอยู่แล้วก็ไม่ต้องโชว์แถบวิชาปัจจุบันซ้ำ (ในรายการมี ✓ กำกับให้แล้ว)
+    $('subjectCurrent').hidden = subjectPanelOpen;
+    $('subjectToggle').setAttribute('aria-expanded', subjectPanelOpen ? 'true' : 'false');
+    $('subjectToggle').textContent = subjectPanelOpen ? 'ปิดรายการวิชา' : 'เปลี่ยนวิชา';
+
     var host = $('subjectCards');
     host.textContent = '';
-    EXAM.subjects.forEach(function (subj) {
-      var total = EXAM.count(subj.id);
-      var card = el('button', 'subject-card');
-      card.type = 'button';
-      card.setAttribute('aria-pressed', state.subject === subj.id ? 'true' : 'false');
-      card.appendChild(el('span', 'subject-icon', subj.icon || '📘'));
+
+    if (!shown.length) {
+      host.appendChild(el('div', 'empty', 'ไม่พบวิชาที่ค้นหา'));
+    }
+
+    shown.forEach(function (subj) {
+      var row = el('div', 'subject-row' + (subj.id === state.subject ? ' is-current' : ''));
+
+      var pick = el('button', 'subject-pick');
+      pick.type = 'button';
+      pick.setAttribute('aria-pressed', subj.id === state.subject ? 'true' : 'false');
+      pick.appendChild(el('span', 'subject-icon', subj.icon || '📘'));
       var body = el('div', 'subject-body');
       body.appendChild(el('b', null, subj.name));
-      body.appendChild(el('small', null, subj.note + ' · คลัง ' + (total.mc + total.fill + total.matchSets * 5) + ' ข้อ'));
-      card.appendChild(body);
-      card.addEventListener('click', function () {
+      body.appendChild(el('small', null, subjectSummary(subj.id)));
+      pick.appendChild(body);
+      if (subj.id === state.subject) pick.appendChild(el('span', 'subject-check', '✓'));
+      pick.addEventListener('click', function () {
         state.subject = subj.id;
+        subjectPanelOpen = false;
+        subjectQuery = '';
+        $('subjectSearch').value = '';
         savePrefs();
         renderHome();
       });
-      host.appendChild(card);
+      row.appendChild(pick);
+
+      var edit = el('button', 'subject-edit', '✏️');
+      edit.type = 'button';
+      edit.title = 'แก้ไขชื่อวิชา';
+      edit.setAttribute('aria-label', 'แก้ไขชื่อวิชา ' + subj.name);
+      edit.addEventListener('click', function () { openSubjectDialog(subj.id); });
+      row.appendChild(edit);
+
+      host.appendChild(row);
     });
+
+    $('subjectCount').textContent = all.length
+      ? (q ? 'แสดง ' + shown.length + ' จาก ' + all.length + ' วิชา' : 'มีทั้งหมด ' + all.length + ' วิชา')
+      : '';
+  }
+
+  function renderSubjectCards() {
+    renderCurrentSubject();
+    renderSubjectList();
+  }
+
+  /* ----------------------- กล่องแก้ไขชื่อวิชา ----------------------- */
+  var editingSubject = null;
+
+  function showFieldError(message) {
+    var node = $('fieldError');
+    node.textContent = message || '';
+    node.hidden = !message;
+  }
+
+  function renderIconPicker(current) {
+    var host = $('iconPicker');
+    host.textContent = '';
+    ICON_CHOICES.forEach(function (icon) {
+      var btn = el('button', 'icon-option' + (icon === current ? ' is-active' : ''), icon);
+      btn.type = 'button';
+      btn.title = 'ใช้ไอคอน ' + icon;
+      btn.addEventListener('click', function () {
+        $('fieldIcon').value = icon;
+        renderIconPicker(icon);
+      });
+      host.appendChild(btn);
+    });
+  }
+
+  function openSubjectDialog(subjectId) {
+    var subj = subjectById(subjectId);
+    if (!subj) return;
+    editingSubject = subjectId;
+    $('fieldName').value = subj.name;
+    $('fieldShort').value = subj.short;
+    $('fieldIcon').value = subj.icon || '📘';
+    $('subjectDialogHint').textContent = 'ชื่อเดิมจากไฟล์ข้อมูล: ' + subj.original.name +
+      (subj.renamed ? ' (ตอนนี้ถูกแก้ไว้แล้ว)' : '');
+    $('subjectResetBtn').disabled = !subj.renamed;
+    showFieldError('');
+    renderIconPicker(subj.icon || '📘');
+    $('subjectDialog').hidden = false;
+    setTimeout(function () { $('fieldName').focus({ preventScroll: true }); }, 50);
+  }
+
+  function closeSubjectDialog() {
+    $('subjectDialog').hidden = true;
+    editingSubject = null;
+  }
+
+  function saveSubjectDialog() {
+    if (!editingSubject) return;
+    var name = $('fieldName').value.trim();
+    var short = $('fieldShort').value.trim();
+    var icon = $('fieldIcon').value.trim();
+
+    if (!name) { showFieldError('กรุณาใส่ชื่อวิชา'); $('fieldName').focus(); return; }
+    if (!short) { showFieldError('กรุณาใส่ชื่อย่อ'); $('fieldShort').focus(); return; }
+
+    var clash = EXAM.subjects.some(function (s2) {
+      return s2.id !== editingSubject && s2.name.trim().toLowerCase() === name.toLowerCase();
+    });
+    if (clash) { showFieldError('มีวิชาชื่อนี้อยู่แล้ว ลองตั้งชื่ออื่น'); $('fieldName').focus(); return; }
+
+    var ok = saveSubjectOverride(editingSubject, { name: name, short: short, icon: icon || '📘' });
+    closeSubjectDialog();
+    renderHome();
+    toast(ok ? 'บันทึกชื่อวิชาแล้ว' : 'บันทึกไม่สำเร็จ (พื้นที่เก็บข้อมูลเต็ม)');
   }
 
   function renderHome() {
     if (!state.subject) state.subject = EXAM.subjects[0].id;
     var subjectId = state.subject;
     var subject = subjectById(subjectId);
-    $('brandSub').textContent = subject.short + ' · ' + subject.note;
+    $('brandSub').textContent = subject.short + ' · ' + subjectNote(subjectId);
 
     renderSubjectCards();
 
@@ -1075,12 +1269,40 @@
   }
 
   /* ============================= ประวัติคะแนน ============================= */
-  function renderHistoryFilter() {
+  function renderHistoryFilter(history) {
     var host = $('historyFilter');
     host.textContent = '';
+    host.className = '';
+
+    /* แสดงเฉพาะวิชาที่มีประวัติจริง — รายการจึงไม่ยาวตามจำนวนวิชาทั้งหมด */
+    var seen = {};
+    history.forEach(function (r) { if (r.subject) seen[r.subject] = true; });
+    var used = EXAM.subjects.filter(function (s2) { return seen[s2.id]; });
+    if (used.length < 2) return;                       // มีวิชาเดียวก็ไม่ต้องมีตัวกรอง
+
+    if (state.historyFilter !== 'all' && !seen[state.historyFilter]) state.historyFilter = 'all';
     var options = [{ id: 'all', label: 'ทุกวิชา' }].concat(
-      EXAM.subjects.map(function (s2) { return { id: s2.id, label: s2.short }; })
+      used.map(function (s2) { return { id: s2.id, label: s2.short }; })
     );
+
+    if (options.length > FILTER_SELECT_THRESHOLD) {     // วิชาเยอะ → ใช้ dropdown
+      var select = el('select', 'filter-select');
+      select.setAttribute('aria-label', 'กรองประวัติตามวิชา');
+      options.forEach(function (opt) {
+        var o = el('option', null, opt.label);
+        o.value = opt.id;
+        if (opt.id === state.historyFilter) o.selected = true;
+        select.appendChild(o);
+      });
+      select.addEventListener('change', function () {
+        state.historyFilter = select.value;
+        renderHistory();
+      });
+      host.appendChild(select);
+      return;
+    }
+
+    host.className = 'seg';
     options.forEach(function (opt) {
       var btn = el('button', 'seg-btn' + (state.historyFilter === opt.id ? ' is-active' : ''), opt.label);
       btn.type = 'button';
@@ -1093,10 +1315,11 @@
   }
 
   function renderHistory() {
-    renderHistoryFilter();
+    var all = storageGet(KEY_HISTORY, []);
+    renderHistoryFilter(all);
     var host = $('historyHost');
     host.textContent = '';
-    var history = storageGet(KEY_HISTORY, []).filter(function (r) {
+    var history = all.filter(function (r) {
       return state.historyFilter === 'all' || r.subject === state.historyFilter;
     });
 
@@ -1252,6 +1475,7 @@
 
   /* ============================== คีย์ลัดเดสก์ท็อป ============================== */
   function onKeydown(ev) {
+    if (ev.key === 'Escape' && !$('subjectDialog').hidden) { closeSubjectDialog(); return; }
     if (state.screen !== 'quiz' || !state.quiz) return;
     var tag = (ev.target && ev.target.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
@@ -1268,6 +1492,8 @@
   function init() {
     var problems = EXAM.validate();
     if (problems.length) console.warn('พบปัญหาในคลังข้อสอบ:', problems);
+
+    applySubjectOverrides();
 
     var saved = storageGet(KEY_PREFS, null);
     state.subject = (saved && subjectById(saved.subject)) ? saved.subject : EXAM.subjects[0].id;
@@ -1309,6 +1535,38 @@
     $('clearAllBtn').addEventListener('click', function () {
       state.selected[state.subject] = []; savePrefs(); renderHome();
     });
+    $('subjectToggle').addEventListener('click', function () {
+      subjectPanelOpen = !subjectPanelOpen;
+      renderSubjectList();
+      if (subjectPanelOpen && EXAM.subjects.length >= SEARCH_THRESHOLD) {
+        setTimeout(function () { $('subjectSearch').focus({ preventScroll: true }); }, 50);
+      }
+    });
+    $('subjectSearch').addEventListener('input', function (ev) {
+      subjectQuery = ev.target.value;
+      renderSubjectList();
+    });
+
+    $('subjectSaveBtn').addEventListener('click', saveSubjectDialog);
+    $('subjectCancelBtn').addEventListener('click', closeSubjectDialog);
+    $('subjectResetBtn').addEventListener('click', function () {
+      if (!editingSubject) return;
+      resetSubjectOverride(editingSubject);
+      closeSubjectDialog();
+      renderHome();
+      toast('คืนค่าชื่อเดิมแล้ว');
+    });
+    $('subjectDialog').addEventListener('click', function (ev) {
+      if (ev.target === $('subjectDialog')) closeSubjectDialog();   // คลิกนอกกล่อง = ปิด
+    });
+    $('fieldName').addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); saveSubjectDialog(); }
+    });
+    $('fieldShort').addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); saveSubjectDialog(); }
+    });
+    $('fieldIcon').addEventListener('input', function (ev) { renderIconPicker(ev.target.value.trim()); });
+
     $('mixSeg').addEventListener('click', function (ev) {
       var btn = ev.target.closest('.seg-btn');
       if (!btn) return;

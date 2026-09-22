@@ -13,8 +13,9 @@ const collectPageErrors = (page) => {
 
 /** อ่านชนิดของข้อที่แสดงอยู่บนหน้าจอตอนนี้ */
 const currentKind = (page) => page.evaluate(() => {
-  if (document.querySelector('.word-pool')) return 'match';
-  if (document.querySelector('.fill-input')) return 'fill';
+  const card = document.querySelector('#questionHost');
+  if (card.querySelector('.word-pool')) return 'match';
+  if (card.querySelector('.fill-input')) return 'fill';
   return 'mc';
 });
 
@@ -44,7 +45,7 @@ const answerCurrentCorrectly = async (page) => {
       return found ? found.accept[0] : null;
     });
     expect(answer, 'ต้องหาโจทย์เติมคำเจอในคลังข้อสอบ').not.toBeNull();
-    await page.locator('.fill-input').fill(answer);
+    await page.locator('#questionHost .fill-input').fill(answer);
     await page.getByRole('button', { name: /^ตรวจคำตอบ/ }).click();
   } else {
     const answers = await page.evaluate(() => {
@@ -99,8 +100,9 @@ test('Exam A2: ทั้งสองวิชาเริ่มทำข้อ�
 
   for (const subject of subjects) {
     await page.goto('/exam/');
-    await page.locator('.subject-card', { hasText: subject.name }).click();
-    await expect(page.locator(`.subject-card[aria-pressed="true"]`)).toContainText(subject.name);
+    await page.locator('#subjectToggle').click();
+    await page.locator('.subject-pick', { hasText: subject.name }).click();
+    await expect(page.locator('.subject-current .subject-body b')).toHaveText(subject.name);
     await expect(page.locator('#startBtn')).toBeEnabled();
     await page.locator('#startBtn').click();
     await expect(page.locator('#screen-quiz')).toBeVisible();
@@ -118,6 +120,158 @@ test('Exam A2: ทั้งสองวิชาเริ่มทำข้อ�
     await page.locator('#quitBtn').click();
     await page.locator('#discardBtn').click();
   }
+
+  expect(errors, 'ต้องไม่มี pageerror').toHaveLength(0);
+});
+
+/** เพิ่มวิชาปลอมเข้า EXAM ตอนรันไทม์ เพื่อทดสอบว่า UI รับวิชาจำนวนมากได้ */
+const addFakeSubjects = (page, count) => page.evaluate((n) => {
+  for (let i = 1; i <= n; i++) {
+    window.addSubject({ id: `t${i}`, name: `วิชาทดสอบลำดับที่ ${i}`, en: `Test ${i}`, short: `ทดสอบ${i}`, icon: '🧪' });
+    window.addChapter({ id: `t${i}-ch1`, subject: `t${i}`, no: i, title: 'บททดสอบ' }, {
+      mc: [{
+        id: `t${i}-m1`, q: `โจทย์ทดสอบของวิชา ${i}`,
+        choices: ['ก', 'ข', 'ค', 'ง', 'จ'], answer: 0, explain: 'เฉลยทดสอบ',
+      }],
+    });
+  }
+}, count);
+
+test('Exam E: แก้ชื่อวิชาได้ และชื่อใหม่ถูกใช้ทั่วแอพ + คืนค่าเดิมได้', async ({ page }) => {
+  const errors = collectPageErrors(page);
+  await page.goto('/exam/');
+
+  // ชื่อเดิมจากไฟล์ข้อมูล
+  await expect(page.locator('.subject-current .subject-body b')).toHaveText('เทคนิคการขายมืออาชีพ');
+
+  // เปิดกล่องแก้ไขจากแถบวิชาปัจจุบัน
+  await page.locator('.subject-current .subject-edit').click();
+  await expect(page.locator('#subjectDialog')).toBeVisible();
+  await expect(page.locator('#subjectResetBtn')).toBeDisabled();   // ยังไม่เคยแก้
+
+  await page.locator('#fieldName').fill('การขายและการตลาด 101');
+  await page.locator('#fieldShort').fill('ขาย101');
+  await page.locator('.icon-option', { hasText: '💡' }).click();
+  await page.locator('#subjectSaveBtn').click();
+
+  await expect(page.locator('#subjectDialog')).toBeHidden();
+  await expect(page.locator('.subject-current .subject-body b')).toHaveText('การขายและการตลาด 101');
+  await expect(page.locator('.subject-current .subject-icon')).toHaveText('💡');
+  await expect(page.locator('#brandSub')).toContainText('ขาย101');
+
+  // ชื่อต้องคงอยู่หลังรีโหลด
+  await page.reload();
+  await expect(page.locator('.subject-current .subject-body b')).toHaveText('การขายและการตลาด 101');
+
+  // ชื่อย่อใหม่ต้องไปโผล่ในประวัติคะแนนด้วย
+  await page.evaluate(() => {
+    localStorage.setItem('examApp.history.v1', JSON.stringify([{
+      at: Date.now(), subject: 'sales', score: 30, total: 60, percent: 50,
+      seconds: 100, chapters: ['sales-ch04'],
+      bySection: { mc: { got: 20, max: 40 }, match: { got: 5, max: 10 }, fill: { got: 5, max: 10 } },
+      byType: { analysis: { got: 10, max: 20 }, recall: { got: 10, max: 20 } },
+      byChapter: {},
+    }]));
+  });
+  await page.locator('#historyBtn').click();
+  await expect(page.locator('.history-sub')).toContainText('วิชาขาย101');
+  await page.locator('#historyHomeBtn').click();
+
+  // คืนค่าเดิม
+  await page.locator('.subject-current .subject-edit').click();
+  await expect(page.locator('#subjectResetBtn')).toBeEnabled();
+  await expect(page.locator('#subjectDialogHint')).toContainText('เทคนิคการขายมืออาชีพ');
+  await page.locator('#subjectResetBtn').click();
+  await expect(page.locator('.subject-current .subject-body b')).toHaveText('เทคนิคการขายมืออาชีพ');
+
+  expect(errors, 'ต้องไม่มี pageerror').toHaveLength(0);
+});
+
+test('Exam F: ชื่อวิชาต้องไม่ว่างและต้องไม่ซ้ำกับวิชาอื่น', async ({ page }) => {
+  await page.goto('/exam/');
+  await page.locator('.subject-current .subject-edit').click();
+
+  // ชื่อว่าง
+  await page.locator('#fieldName').fill('   ');
+  await page.locator('#subjectSaveBtn').click();
+  await expect(page.locator('#fieldError')).toContainText('กรุณาใส่ชื่อวิชา');
+  await expect(page.locator('#subjectDialog')).toBeVisible();
+
+  // ชื่อซ้ำกับอีกวิชา
+  await page.locator('#fieldName').fill('การจัดการการตลาดสมัยใหม่');
+  await page.locator('#subjectSaveBtn').click();
+  await expect(page.locator('#fieldError')).toContainText('มีวิชาชื่อนี้อยู่แล้ว');
+  await expect(page.locator('#subjectDialog')).toBeVisible();
+
+  // กด Escape เพื่อปิดโดยไม่บันทึก
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#subjectDialog')).toBeHidden();
+  await expect(page.locator('.subject-current .subject-body b')).toHaveText('เทคนิคการขายมืออาชีพ');
+});
+
+test('Exam G: UI รองรับวิชาจำนวนมาก — มีช่องค้นหา รายการเลื่อนได้ และประวัติใช้ dropdown', async ({ page }) => {
+  const errors = collectPageErrors(page);
+  await page.goto('/exam/');
+
+  // 2 วิชาเดิม: ยังไม่ต้องมีช่องค้นหา
+  await page.locator('#subjectToggle').click();
+  await expect(page.locator('#subjectPanel')).toBeVisible();
+  await expect(page.locator('#subjectSearchWrap')).toBeHidden();
+  await expect(page.locator('.subject-row')).toHaveCount(2);
+
+  // ปิดรายการก่อน แล้วเพิ่มอีก 10 วิชา วาดหน้าแรกใหม่ และเปิดรายการอีกครั้ง
+  await page.locator('#subjectToggle').click();
+  await expect(page.locator('#subjectPanel')).toBeHidden();
+
+  await addFakeSubjects(page, 10);
+  await page.locator('#brandBtn').click();
+  await page.locator('#subjectToggle').click();
+
+  await expect(page.locator('#subjectPanel')).toBeVisible();
+  await expect(page.locator('#subjectSearchWrap')).toBeVisible();
+  await expect(page.locator('.subject-row')).toHaveCount(12);
+  await expect(page.locator('#subjectCount')).toContainText('มีทั้งหมด 12 วิชา');
+
+  // รายการต้องเลื่อนได้ ไม่ดันหน้าจอยาวจนใช้งานไม่ได้
+  const scrolls = await page.locator('#subjectCards').evaluate((n) => ({
+    scrollable: n.scrollHeight > n.clientHeight + 1,
+    clientHeight: n.clientHeight,
+  }));
+  expect(scrolls.scrollable, 'รายการวิชาต้องเลื่อนได้เมื่อวิชาเยอะ').toBe(true);
+  expect(scrolls.clientHeight, 'ความสูงรายการต้องถูกจำกัดไว้').toBeLessThan(700);
+
+  // ค้นหาต้องกรองได้
+  await page.locator('#subjectSearch').fill('ทดสอบลำดับที่ 7');
+  await expect(page.locator('.subject-row')).toHaveCount(1);
+  await expect(page.locator('#subjectCount')).toContainText('แสดง 1 จาก 12 วิชา');
+
+  // เลือกวิชาที่ค้นเจอแล้วต้องสลับไปวิชานั้น และปิดรายการให้เอง
+  await page.locator('.subject-pick').first().click();
+  await expect(page.locator('#subjectPanel')).toBeHidden();
+  await expect(page.locator('.subject-current .subject-body b')).toHaveText('วิชาทดสอบลำดับที่ 7');
+  await expect(page.locator('#brandSub')).toContainText('ทดสอบ7');
+
+  // ไม่พบผลการค้นหา
+  await page.locator('#subjectToggle').click();
+  await page.locator('#subjectSearch').fill('ไม่มีวิชานี้แน่นอน');
+  await expect(page.locator('#subjectCards .empty')).toContainText('ไม่พบวิชาที่ค้นหา');
+
+  // ประวัติที่มีหลายวิชาต้องเปลี่ยนตัวกรองเป็น dropdown
+  await page.evaluate(() => {
+    const mk = (subject, at) => ({
+      at, subject, score: 30, total: 60, percent: 50, seconds: 60, chapters: [],
+      bySection: { mc: { got: 20, max: 40 }, match: { got: 5, max: 10 }, fill: { got: 5, max: 10 } },
+      byType: { analysis: { got: 0, max: 0 }, recall: { got: 20, max: 40 } }, byChapter: {},
+    });
+    const now = Date.now();
+    localStorage.setItem('examApp.history.v1', JSON.stringify(
+      ['sales', 'mkt', 't1', 't2', 't3'].map((s, i) => mk(s, now - i * 1000))));
+  });
+  await page.locator('#historyBtn').click();
+  await expect(page.locator('#historyFilter select')).toBeVisible();
+  await expect(page.locator('#historyFilter select option')).toHaveCount(6);  // ทุกวิชา + 5 วิชาที่มีประวัติ
+  await page.locator('#historyFilter select').selectOption('mkt');
+  await expect(page.locator('.history-item')).toHaveCount(1);
 
   expect(errors, 'ต้องไม่มี pageerror').toHaveLength(0);
 });

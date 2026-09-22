@@ -51,8 +51,23 @@
     </div>
 
     <div class="card">
-      <h2 class="card-title">เลือกวิชา</h2>
-      <div class="subject-grid" id="subjectCards"></div>
+      <div class="card-head">
+        <h2 class="card-title">วิชาที่กำลังติว</h2>
+        <button class="btn btn-mini" id="subjectToggle" type="button" aria-expanded="false" aria-controls="subjectPanel">
+          เปลี่ยนวิชา
+        </button>
+      </div>
+
+      <div id="subjectCurrent"></div>
+
+      <div id="subjectPanel" hidden>
+        <div class="subject-search" id="subjectSearchWrap" hidden>
+          <input type="search" id="subjectSearch" class="text-input" placeholder="ค้นหาวิชา…"
+                 autocomplete="off" aria-label="ค้นหาวิชา" />
+        </div>
+        <div class="subject-list" id="subjectCards"></div>
+        <p class="bank-note" id="subjectCount"></p>
+      </div>
     </div>
 
     <div class="stat-row" id="homeStats"></div>
@@ -144,7 +159,7 @@
   <section class="screen" id="screen-history" hidden>
     <div class="page-head">
       <h1>ประวัติคะแนน</h1>
-      <div class="seg" id="historyFilter"></div>
+      <div id="historyFilter"></div>
     </div>
     <div id="historyHost"></div>
     <div class="btn-row">
@@ -159,6 +174,37 @@
   </section>
 
 </main>
+
+<div class="overlay" id="subjectDialog" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="subjectDialogTitle">
+    <h2 class="card-title" id="subjectDialogTitle">แก้ไขชื่อวิชา</h2>
+    <p class="muted" id="subjectDialogHint"></p>
+
+    <label class="field">
+      <span>ไอคอน</span>
+      <input type="text" id="fieldIcon" class="text-input field-icon" maxlength="4" autocomplete="off" />
+    </label>
+    <div class="icon-picker" id="iconPicker"></div>
+
+    <label class="field">
+      <span>ชื่อวิชา</span>
+      <input type="text" id="fieldName" class="text-input" maxlength="80" autocomplete="off" />
+    </label>
+
+    <label class="field">
+      <span>ชื่อย่อ (ใช้ในประวัติคะแนนและแถบบน)</span>
+      <input type="text" id="fieldShort" class="text-input" maxlength="24" autocomplete="off" />
+    </label>
+
+    <p class="field-error" id="fieldError" hidden></p>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="subjectSaveBtn" type="button">บันทึก</button>
+      <button class="btn" id="subjectResetBtn" type="button">คืนค่าเดิม</button>
+      <button class="btn btn-ghost" id="subjectCancelBtn" type="button">ยกเลิก</button>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast" hidden></div>
 
