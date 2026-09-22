@@ -292,8 +292,8 @@ addChapter(
           'STP (Segmentation → Targeting → Positioning)',
           'AOSTC (Analysis → Objectives → Strategies → Tactics → Control)',
           '4Ps (Product → Price → Place → Promotion)',
-          'SMART Goals',
-          'Marketing Mix 7Ps'
+          'MSADA (Measurable → Substantial → Accessible → Differentiable → Actionable)',
+          'SMART (Specific → Measurable → Achievable → Realistic → Timed)'
         ],
         answer: 0,
         explain: 'ครบทั้ง 3 ขั้นของ STP — แบ่งส่วนตลาด (S) → กำหนดตลาดเป้าหมาย (T) → กำหนดตำแหน่งผลิตภัณฑ์ (P)',

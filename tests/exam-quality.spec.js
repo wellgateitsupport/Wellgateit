@@ -18,7 +18,9 @@ const EXCLUSIVE = {
     'HIQS', 'Challenger Sale', 'Trust Equation', 'Latent Need', 'Buyer Persona', 'Executive Summary',
     'Referral', 'Lead Qualification', 'Rackham', 'Goleman', 'Dweck', 'Zaltman', 'Kahneman', 'Mehrabian',
     'Cuddy', 'Angelou', 'Need-Payoff', 'Reciprocity', 'Social Proof', 'Scarcity', 'Rich Menu',
-    'Auto-Reply', 'LINE OA', 'LinkedIn', 'Social Selling', 'Pain Point'],
+    'Auto-Reply', 'LINE OA', 'LinkedIn', 'Social Selling', 'Pain Point',
+    'SMART Goals', 'Sales Goal', 'Personal Branding', 'Elevator Pitch', 'Sales Script',
+    'Time-bound', 'Take Action'],
   mkt: ['Market Segmentation', 'Psychographic', 'Substantial', 'Differentiable', 'Actionable',
     'Product Positioning', 'STP', 'Value for Money', 'Country of Origin', 'Attractiveness',
     'Marketing Mix', '4Ps', '7Ps', 'Cost Leadership', 'Product Differentiation', 'Multimodal',
@@ -26,7 +28,9 @@ const EXCLUSIVE = {
     'Fire-Grilled', 'Localization', 'AOSTC', 'Farral', 'Lindsley', 'Monster Energy', 'Market Space',
     'MarTech', 'Real Time Marketing', 'Pop-up', 'Augmented Reality', 'Virtual Reality', 'TikToker',
     'YouTuber', 'Loyalty Program', 'Brand Loyalty', 'Netflix', 'IKEA', 'Google Ads', 'Warehouse',
-    'Logistic'],
+    'Logistic',
+    'Segmentation', 'Targeting', 'Positioning', 'Segment \u2192 Target', 'Geographic',
+    'Perceptual Map', 'SMART Objectives'],
 };
 
 /**
@@ -92,6 +96,24 @@ test('Quality B: ตัวเลือกและโจทย์ต้องไ
     }
   }
   expect(hits, `พบการยืมศัพท์ข้ามวิชา:\n${hits.join('\n')}`).toEqual([]);
+});
+
+test('Quality F: SMART ของสองวิชาใช้คนละตัวอักษร ห้ามสลับกัน', async ({ page }) => {
+  await page.goto('/exam/');
+  const bank = await loadBank(page);
+  // สไลด์วิชาขายบทที่ 8: R = Relevant, T = Time-bound
+  // สไลด์วิชาการตลาดบทที่ 8: R = Realistic, T = Timed
+  const WRONG = { sales: ['Realistic', 'Timed'], mkt: ['Relevant', 'Time-bound'] };
+  const hits = [];
+  for (const q of bank.mc) {
+    const text = [q.q, ...(q.choices || [])].join(' ');
+    if (!/SMART/i.test(text)) continue;
+    const correct = (q.choices || [])[q.answer] || '';
+    for (const w of WRONG[q.subject]) {
+      if (correct.includes(w)) hits.push(`[${q.subject}] ${q.id} — คำตอบถูกใช้ "${w}" ซึ่งเป็นนิยามของอีกวิชา`);
+    }
+  }
+  expect(hits, hits.join('\n')).toEqual([]);
 });
 
 test('Quality C: คำตอบต้องไม่ยาวหรือสั้นกว่าตัวลวงจนเดาได้', async ({ page }) => {

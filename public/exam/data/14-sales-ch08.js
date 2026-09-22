@@ -136,7 +136,7 @@ addChapter(
           'Demographic',
           'Psychographic',
           'Behavioral',
-          'Geographic',
+          'Firmographic',
           'Technographic'
         ],
         answer: 0,
@@ -148,7 +148,7 @@ addChapter(
         q: 'การวิเคราะห์ "ไลฟ์สไตล์ ค่านิยม" ของลูกค้าจัดเป็นข้อมูลประเภทใด',
         choices: [
           'Demographic',
-          'Geographic',
+          'Firmographic',
           'Psychographic',
           'Behavioral',
           'Technographic'
@@ -178,7 +178,7 @@ addChapter(
           'Profile / Pain Points / Needs vs Wants',
           'Budget / Authority / Need / Timeline',
           'Feature / Advantage / Benefit',
-          'Demographic / Geographic / Psychographic / Behavioral',
+          'Demographic / Psychographic / Behavioral / Technographic',
           'Attention / Interest / Desire / Action'
         ],
         answer: 0,
