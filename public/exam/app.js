@@ -1,6 +1,7 @@
 /* ==========================================================================
    app.js — ตรรกะของแอพทำข้อสอบ
-   • สุ่มข้อสอบ 60 ข้อ (ปรนัย 40 / จับคู่คำ 10 / เติมคำ 10) จากคลังบทที่ 4-8
+   • สุ่มข้อสอบจากคลังตามจำนวนที่ผู้ใช้กำหนดเอง (ค่าเริ่มต้น 60 ข้อ:
+     ปรนัย 40 / จับคู่คำ 10 / เติมคำ 10)
    • เฉลยทันทีเมื่อกดตอบแต่ละข้อ
    • เก็บประวัติคะแนนทุกรอบไว้ใน localStorage
    ========================================================================== */
@@ -9,11 +10,26 @@
 
   var EXAM = window.EXAM;
 
-  /* --------------------------- ค่าคงที่ของข้อสอบ --------------------------- */
-  var N_MC = 40;          // ปรนัย 40 ข้อ
-  var N_MATCH_SETS = 2;   // จับคู่ 2 ชุด × 5 ข้อ = 10 ข้อ
-  var N_FILL = 10;        // เติมคำ 10 ข้อ
-  var TOTAL = N_MC + N_MATCH_SETS * 5 + N_FILL;
+  /* --------------------------- จำนวนข้อของแต่ละแบบ --------------------------- */
+  /* ผู้ใช้ปรับได้เองในหน้าแรก — ค่านี้คือค่าเริ่มต้นและค่าที่ปุ่ม "ชุดเต็ม" ใช้ */
+  var DEFAULT_COUNTS = { mc: 40, match: 10, fill: 10 };
+  var COUNT_MAX = { mc: 200, match: 100, fill: 100 };   // เพดานกันพิมพ์เลขหลุดโลก
+  var MATCH_ITEMS = 5;                                  // จับคู่ 1 ชุด = 5 ข้อเสมอ
+  var COUNT_PRESETS = [
+    { label: 'ชุดเต็ม 60', mc: 40, match: 10, fill: 10 },
+    { label: 'ชุดสั้น 30', mc: 20, match: 5, fill: 5 },
+    { label: 'ปรนัยล้วน 40', mc: 40, match: 0, fill: 0 }
+  ];
+
+  /** ปรับเลขที่ผู้ใช้กรอกให้อยู่ในช่วงที่ใช้ได้ (จับคู่ปัดเป็นชุดละ 5) */
+  function normCount(kind, value) {
+    var v = parseInt(value, 10);
+    if (isNaN(v) || v < 0) v = 0;
+    if (v > COUNT_MAX[kind]) v = COUNT_MAX[kind];
+    if (kind === 'match') v = Math.round(v / MATCH_ITEMS) * MATCH_ITEMS;
+    return v;
+  }
+  function requestedTotal(counts) { return counts.mc + counts.match + counts.fill; }
 
   /* สัดส่วนข้อวิเคราะห์ในตอนปรนัย ตามโหมดที่ผู้ใช้เลือก */
   var MIX_RATIO = { recall: 0, balanced: 0.6, analysis: 1 };
@@ -125,7 +141,10 @@
     screen: 'home',
     subject: null,      // รหัสวิชาที่เลือกอยู่
     selected: {},       // { รหัสวิชา: [รหัสบทที่เลือก] }
-    prefs: { instant: true, shuffleChoices: true, timer: true, mix: 'balanced' },
+    prefs: {
+      instant: true, shuffleChoices: true, timer: true, mix: 'balanced',
+      counts: { mc: DEFAULT_COUNTS.mc, match: DEFAULT_COUNTS.match, fill: DEFAULT_COUNTS.fill }
+    },
     quiz: null,         // ข้อสอบรอบปัจจุบัน
     lastResult: null,   // ผลรอบล่าสุด (ใช้ในหน้าสรุป/ทบทวน)
     reviewFilter: 'all',
@@ -299,7 +318,8 @@
     var mcPool = EXAM.mc.filter(inScope);
     var fillPool = EXAM.fill.filter(inScope);
 
-    var mcItems = drawMC(mcPool, chapterIds, Math.min(N_MC, mcPool.length), state.prefs.mix).map(function (q) {
+    var counts = state.prefs.counts;
+    var mcItems = drawMC(mcPool, chapterIds, Math.min(counts.mc, mcPool.length), state.prefs.mix).map(function (q) {
       var order = state.prefs.shuffleChoices
         ? shuffle(q.choices.map(function (_, i) { return i; }))
         : q.choices.map(function (_, i) { return i; });
@@ -318,7 +338,7 @@
       };
     });
 
-    var matchItems = drawMatchSets(subjectId, chapterIds, N_MATCH_SETS).map(function (s) {
+    var matchItems = drawMatchSets(subjectId, chapterIds, counts.match / MATCH_ITEMS).map(function (s) {
       return {
         kind: 'match',
         id: s.id,
@@ -332,7 +352,7 @@
       };
     });
 
-    var fillItems = drawSpread(fillPool, chapterIds, Math.min(N_FILL, fillPool.length)).map(function (q) {
+    var fillItems = drawSpread(fillPool, chapterIds, Math.min(counts.fill, fillPool.length)).map(function (q) {
       return {
         kind: 'fill',
         id: q.id,
@@ -619,21 +639,27 @@
       startBtn.disabled = true;
       startBtn.textContent = 'เลือกบทก่อนเริ่มทำข้อสอบ';
     } else {
-      var willMc = Math.min(N_MC, n.mc);
-      var willFill = Math.min(N_FILL, n.fill);
-      var willMatch = Math.min(N_MATCH_SETS, n.matchSets) * 5;
+      var counts = state.prefs.counts;
+      var want = requestedTotal(counts);
+      var willMc = Math.min(counts.mc, n.mc);
+      var willFill = Math.min(counts.fill, n.fill);
+      var willMatch = Math.min(counts.match / MATCH_ITEMS, n.matchSets) * MATCH_ITEMS;
       var total = willMc + willFill + willMatch;
       note.textContent = 'คลังของบทที่เลือก: ปรนัย ' + n.mc + ' ข้อ (วิเคราะห์ ' + n.analysis +
         ' / ความจำ ' + n.recall + ') · เติมคำ ' + n.fill + ' ข้อ · จับคู่ ' + n.matchSets + ' ชุด' +
-        (total < TOTAL ? ' — รอบนี้จะได้ ' + total + ' ข้อ (คลังของบทที่เลือกมีไม่พอ ' + TOTAL + ' ข้อ)' : '');
-      startBtn.disabled = false;
-      startBtn.textContent = 'เริ่มทำข้อสอบ ' + total + ' ข้อ';
+        (total < want ? ' — รอบนี้จะได้ ' + total + ' ข้อ (คลังของบทที่เลือกมีไม่พอ ' + want + ' ข้อ)' : '');
+      startBtn.disabled = total === 0;
+      startBtn.textContent = total === 0
+        ? 'กำหนดจำนวนข้ออย่างน้อย 1 ข้อก่อน'
+        : 'เริ่มทำข้อสอบ ' + total + ' ข้อ';
     }
+    renderCounts(n);
 
     /* คำอธิบายสัดส่วนข้อวิเคราะห์ */
-    var wantAnalysis = Math.min(Math.round(N_MC * MIX_RATIO[state.prefs.mix]), n.analysis);
-    var wantRecall = Math.min(Math.min(N_MC, n.mc) - wantAnalysis, n.recall);
-    wantAnalysis = Math.min(Math.min(N_MC, n.mc) - wantRecall, n.analysis);
+    var nMc = Math.min(state.prefs.counts.mc, n.mc);
+    var wantAnalysis = Math.min(Math.round(nMc * MIX_RATIO[state.prefs.mix]), n.analysis);
+    var wantRecall = Math.min(nMc - wantAnalysis, n.recall);
+    wantAnalysis = Math.min(nMc - wantRecall, n.analysis);
     $('mixNote').textContent = chosen.length
       ? 'ตอนปรนัยรอบนี้: ข้อวิเคราะห์ ' + wantAnalysis + ' ข้อ · ข้อความจำ ' + wantRecall + ' ข้อ'
       : '';
@@ -657,6 +683,23 @@
     $('optInstant').checked = state.prefs.instant;
     $('optShuffleChoices').checked = state.prefs.shuffleChoices;
     $('optTimer').checked = state.prefs.timer;
+  }
+
+  /** วาดช่องกำหนดจำนวนข้อ และไฮไลต์ปุ่มชุดสำเร็จรูปที่ตรงกับค่าปัจจุบัน */
+  function renderCounts(n) {
+    var counts = state.prefs.counts;
+    $('cntMc').value = counts.mc;
+    $('cntMatch').value = counts.match;
+    $('cntFill').value = counts.fill;
+    $('countNote').textContent = 'รวม ' + requestedTotal(counts) + ' ข้อ' +
+      (n ? ' — คลังของบทที่เลือกมี: ปรนัย ' + n.mc + ' · จับคู่ ' + (n.matchSets * MATCH_ITEMS) +
+           ' · เติมคำ ' + n.fill : '');
+    var btns = $('presetSeg').querySelectorAll('.seg-btn');
+    for (var i = 0; i < btns.length; i++) {
+      var ps = COUNT_PRESETS[i];
+      btns[i].classList.toggle('is-active',
+        ps.mc === counts.mc && ps.match === counts.match && ps.fill === counts.fill);
+    }
   }
 
   function savePrefs() {
@@ -688,10 +731,23 @@
     $('liveTimer').textContent = quiz.prefs.timer ? fmtTime(quiz.elapsed) : '—';
   }
 
-  function sectionOf(step) {
-    if (step.kind === 'mc') return 'ตอนที่ 1 · ปรนัย (เลือกคำตอบที่ถูกที่สุด)';
-    if (step.kind === 'match') return 'ตอนที่ 2 · จับคู่คำลงช่องว่าง';
-    return 'ตอนที่ 3 · เติมคำในช่องว่าง';
+  var SECTION_INFO = {
+    mc: { badge: 'ปรนัย (เลือกคำตอบที่ถูกที่สุด)', bar: 'ปรนัย' },
+    match: { badge: 'จับคู่คำลงช่องว่าง', bar: 'จับคู่คำลงช่องว่าง' },
+    fill: { badge: 'เติมคำในช่องว่าง', bar: 'เติมคำ' }
+  };
+
+  /** เลขตอนขึ้นกับแบบข้อสอบที่มีจริงในรอบนั้น — รอบที่ไม่มีจับคู่ เติมคำจะเป็นตอนที่ 2 */
+  function sectionNumbers(quiz) {
+    var no = {}, next = 1;
+    ['mc', 'match', 'fill'].forEach(function (kind) {
+      if (quiz.steps.some(function (s) { return s.kind === kind; })) no[kind] = next++;
+    });
+    return no;
+  }
+
+  function sectionOf(quiz, step) {
+    return 'ตอนที่ ' + sectionNumbers(quiz)[step.kind] + ' · ' + SECTION_INFO[step.kind].badge;
   }
 
   function questionMeta(step, quiz) {
@@ -738,7 +794,7 @@
     var step = quiz.steps[quiz.index];
     var host = $('questionHost');
     host.textContent = '';
-    $('sectionBadge').textContent = sectionOf(step);
+    $('sectionBadge').textContent = sectionOf(quiz, step);
 
     var card = el('div', 'q-card');
     card.appendChild(questionMeta(step, quiz));
@@ -1112,9 +1168,12 @@
     var sec = el('div', 'card');
     sec.appendChild(el('h2', 'card-title', 'คะแนนแยกตามตอน'));
     var secList = el('div', 'bar-list');
-    secList.appendChild(barRow('ตอนที่ 1 · ปรนัย', result.bySection.mc.got, result.bySection.mc.max));
-    secList.appendChild(barRow('ตอนที่ 2 · จับคู่คำลงช่องว่าง', result.bySection.match.got, result.bySection.match.max));
-    secList.appendChild(barRow('ตอนที่ 3 · เติมคำ', result.bySection.fill.got, result.bySection.fill.max));
+    var secNo = 1;
+    ['mc', 'match', 'fill'].forEach(function (kind) {
+      var part = result.bySection[kind];
+      if (!part || !part.max) return;   // รอบนี้ไม่ได้เลือกแบบนี้ไว้ ไม่ต้องโชว์แถบ
+      secList.appendChild(barRow('ตอนที่ ' + (secNo++) + ' · ' + SECTION_INFO[kind].bar, part.got, part.max));
+    });
     sec.appendChild(secList);
     host.appendChild(sec);
 
@@ -1516,6 +1575,13 @@
       state.prefs.shuffleChoices = saved.prefs.shuffleChoices !== false;
       state.prefs.timer = saved.prefs.timer !== false;
       if (MIX_RATIO[saved.prefs.mix] !== undefined) state.prefs.mix = saved.prefs.mix;
+      if (saved.prefs.counts) {
+        state.prefs.counts = {
+          mc: normCount('mc', saved.prefs.counts.mc),
+          match: normCount('match', saved.prefs.counts.match),
+          fill: normCount('fill', saved.prefs.counts.fill)
+        };
+      }
     }
 
     initTheme();
@@ -1569,6 +1635,37 @@
       if (ev.key === 'Enter') { ev.preventDefault(); saveSubjectDialog(); }
     });
     $('fieldIcon').addEventListener('input', function (ev) { renderIconPicker(ev.target.value.trim()); });
+
+    /* จำนวนข้อ: ปุ่ม −/+ ขยับทีละ 5, พิมพ์เองได้, จับคู่ปัดเป็นชุดละ 5 */
+    ['cntMc', 'cntMatch', 'cntFill'].forEach(function (id) {
+      $(id).addEventListener('change', function (ev) {
+        var kind = ev.target.dataset.count;
+        var v = normCount(kind, ev.target.value);
+        if (kind === 'match' && String(ev.target.value) !== String(v)) {
+          toast('จับคู่คิดเป็นชุด ชุดละ ' + MATCH_ITEMS + ' ข้อ — ปรับเป็น ' + v + ' ข้อให้แล้ว');
+        }
+        state.prefs.counts[kind] = v;
+        savePrefs();
+        renderHome();
+      });
+    });
+    $('countGrid').addEventListener('click', function (ev) {
+      var btn = ev.target.closest('.step-btn');
+      if (!btn) return;
+      var kind = btn.dataset.count;
+      var v = normCount(kind, state.prefs.counts[kind] + parseInt(btn.dataset.delta, 10));
+      state.prefs.counts[kind] = v;
+      savePrefs();
+      renderHome();
+    });
+    $('presetSeg').addEventListener('click', function (ev) {
+      var btn = ev.target.closest('.seg-btn');
+      if (!btn) return;
+      var ps = COUNT_PRESETS[parseInt(btn.dataset.preset, 10)];
+      state.prefs.counts = { mc: ps.mc, match: ps.match, fill: ps.fill };
+      savePrefs();
+      renderHome();
+    });
 
     $('mixSeg').addEventListener('click', function (ev) {
       var btn = ev.target.closest('.seg-btn');

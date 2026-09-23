@@ -45,7 +45,8 @@
     <div class="hero">
       <h1>สุ่มข้อสอบจากสไลด์ พร้อมเฉลยทันทีทุกข้อ</h1>
       <p class="hero-sub">
-        ข้อสอบ 1 ชุดมี <strong>60 ข้อ</strong> — ปรนัย 40 ข้อ (5 ตัวเลือก) · จับคู่คำลงช่องว่าง 10 ข้อ · เติมคำ 10 ข้อ
+        เลือกเองได้ว่าจะเอาข้อสอบแบบไหนอย่างละกี่ข้อ — ค่าเริ่มต้น <strong>60 ข้อ</strong>
+        (ปรนัย 5 ตัวเลือก 40 · จับคู่คำลงช่องว่าง 10 · เติมคำ 10)
         มีทั้งข้อความจำและข้อวิเคราะห์ที่ยกสถานการณ์จริงมาให้ตัดสิน สุ่มใหม่ทุกครั้ง
       </p>
     </div>
@@ -90,6 +91,46 @@
         <button class="btn btn-mini" id="clearAllBtn" type="button">ล้างการเลือก</button>
       </div>
       <p class="bank-note" id="bankNote"></p>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">จำนวนข้อสอบ</h2>
+      <p class="muted">กำหนดเองได้ว่าจะเอาแบบไหนกี่ข้อ — ใส่ 0 ถ้าไม่เอาแบบนั้น (จับคู่คิดเป็นชุด ชุดละ 5 ข้อ)</p>
+      <div class="seg seg-wide" id="presetSeg">
+        <button class="seg-btn" data-preset="0" type="button">ชุดเต็ม 60</button>
+        <button class="seg-btn" data-preset="1" type="button">ชุดสั้น 30</button>
+        <button class="seg-btn" data-preset="2" type="button">ปรนัยล้วน 40</button>
+      </div>
+      <div class="count-grid" id="countGrid">
+        <div class="count-item">
+          <span class="count-label">ปรนัย (5 ตัวเลือก)</span>
+          <div class="stepper">
+            <button class="step-btn" data-count="mc" data-delta="-5" type="button" aria-label="ลดข้อปรนัยทีละ 5">−</button>
+            <input class="count-input" id="cntMc" data-count="mc" type="number" min="0" max="200" step="5"
+                   inputmode="numeric" aria-label="จำนวนข้อปรนัย" />
+            <button class="step-btn" data-count="mc" data-delta="5" type="button" aria-label="เพิ่มข้อปรนัยทีละ 5">+</button>
+          </div>
+        </div>
+        <div class="count-item">
+          <span class="count-label">จับคู่คำลงช่องว่าง</span>
+          <div class="stepper">
+            <button class="step-btn" data-count="match" data-delta="-5" type="button" aria-label="ลดข้อจับคู่ทีละ 5">−</button>
+            <input class="count-input" id="cntMatch" data-count="match" type="number" min="0" max="100" step="5"
+                   inputmode="numeric" aria-label="จำนวนข้อจับคู่" />
+            <button class="step-btn" data-count="match" data-delta="5" type="button" aria-label="เพิ่มข้อจับคู่ทีละ 5">+</button>
+          </div>
+        </div>
+        <div class="count-item">
+          <span class="count-label">เติมคำในช่องว่าง</span>
+          <div class="stepper">
+            <button class="step-btn" data-count="fill" data-delta="-5" type="button" aria-label="ลดข้อเติมคำทีละ 5">−</button>
+            <input class="count-input" id="cntFill" data-count="fill" type="number" min="0" max="100" step="5"
+                   inputmode="numeric" aria-label="จำนวนข้อเติมคำ" />
+            <button class="step-btn" data-count="fill" data-delta="5" type="button" aria-label="เพิ่มข้อเติมคำทีละ 5">+</button>
+          </div>
+        </div>
+      </div>
+      <p class="bank-note" id="countNote"></p>
     </div>
 
     <div class="card">

@@ -396,3 +396,78 @@ test('Exam D: ออกกลางคันแล้วกลับมาทำ
   await page.locator('#resumeBtn').click();
   await expect(page.locator('#progressLabel')).toHaveText('ข้อ 2 / 60');
 });
+
+test('Exam H: กำหนดจำนวนข้อเองได้ — preset, พิมพ์เลขเอง, ข้ามแบบที่ใส่ 0 และจำค่าไว้', async ({ page }) => {
+  const errors = collectPageErrors(page);
+  await page.goto('/exam/');
+
+  // ค่าเริ่มต้น 40/10/10 = 60 ข้อ และ preset "ชุดเต็ม" ต้องติดไฟ
+  await expect(page.locator('#cntMc')).toHaveValue('40');
+  await expect(page.locator('#cntMatch')).toHaveValue('10');
+  await expect(page.locator('#cntFill')).toHaveValue('10');
+  await expect(page.locator('#startBtn')).toHaveText('เริ่มทำข้อสอบ 60 ข้อ');
+  await expect(page.locator('#presetSeg .seg-btn.is-active')).toHaveText('ชุดเต็ม 60');
+
+  // preset "ชุดสั้น 30" → 20/5/5
+  await page.locator('#presetSeg .seg-btn[data-preset="1"]').click();
+  await expect(page.locator('#startBtn')).toHaveText('เริ่มทำข้อสอบ 30 ข้อ');
+  await expect(page.locator('#cntMc')).toHaveValue('20');
+
+  // ปุ่ม −/+ ขยับทีละ 5
+  await page.locator('.step-btn[data-count="fill"][data-delta="5"]').click();
+  await expect(page.locator('#cntFill')).toHaveValue('10');
+  await page.locator('.step-btn[data-count="fill"][data-delta="-5"]').click();
+  await expect(page.locator('#cntFill')).toHaveValue('5');
+
+  // พิมพ์เอง: ปรนัย 6, จับคู่ 7 (ต้องปัดเป็นชุดละ 5), เติมคำ 0
+  await page.locator('#cntMc').fill('6');
+  await page.locator('#cntMc').blur();
+  await page.locator('#cntMatch').fill('7');
+  await page.locator('#cntMatch').blur();
+  await expect(page.locator('#cntMatch'), 'จับคู่ต้องปัดเป็นชุดละ 5').toHaveValue('5');
+  await page.locator('#cntFill').fill('0');
+  await page.locator('#cntFill').blur();
+  await expect(page.locator('#startBtn')).toHaveText('เริ่มทำข้อสอบ 11 ข้อ');
+
+  // ใส่ 0 หมดทุกแบบ → ปุ่มเริ่มต้องกดไม่ได้
+  await page.locator('#cntMc').fill('0');
+  await page.locator('#cntMc').blur();
+  await page.locator('#cntMatch').fill('0');
+  await page.locator('#cntMatch').blur();
+  await expect(page.locator('#startBtn')).toBeDisabled();
+  await page.locator('#cntMc').fill('6');
+  await page.locator('#cntMc').blur();
+  await page.locator('#cntMatch').fill('5');
+  await page.locator('#cntMatch').blur();
+
+  // รีโหลดแล้วค่าที่ตั้งไว้ต้องคงอยู่
+  await page.reload();
+  await expect(page.locator('#cntMc')).toHaveValue('6');
+  await expect(page.locator('#cntMatch')).toHaveValue('5');
+  await expect(page.locator('#cntFill')).toHaveValue('0');
+
+  // เริ่มทำ: ต้องได้ 6 ปรนัย + 1 ชุดจับคู่ และไม่มีเติมคำเลย
+  await page.locator('#startBtn').click();
+  await expect(page.locator('#screen-quiz')).toBeVisible();
+  const seen = { mc: 0, match: 0, fill: 0 };
+  for (let guard = 0; guard < 10; guard++) {
+    const kind = await currentKind(page);
+    seen[kind] += 1;
+    if (kind === 'match') {
+      // ไม่มีเติมคำในรอบนี้ จับคู่จึงเลื่อนขึ้นมาเป็นตอนที่ 2
+      await expect(page.locator('#sectionBadge')).toHaveText('ตอนที่ 2 · จับคู่คำลงช่องว่าง');
+    }
+    await answerCurrentCorrectly(page);
+    await page.locator('#nextBtn').click();
+    if (await page.locator('#screen-result').isVisible()) break;
+  }
+  expect(seen).toEqual({ mc: 6, match: 1, fill: 0 });
+
+  // หน้าสรุป: คะแนนเต็ม 11, มีแถบปรนัย+จับคู่ แต่ต้องไม่มีแถบเติมคำ
+  await expect(page.locator('.score-big')).toHaveText('11 / 11');
+  await expect(page.locator('#screen-result')).toContainText('ตอนที่ 1 · ปรนัย');
+  await expect(page.locator('#screen-result')).toContainText('ตอนที่ 2 · จับคู่คำลงช่องว่าง');
+  await expect(page.locator('#screen-result')).not.toContainText('เติมคำ');
+
+  expect(errors, 'ต้องไม่มี pageerror').toHaveLength(0);
+});
